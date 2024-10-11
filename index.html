@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Interactive VAE with Webcam</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.0.0/dist/tf.min.js"></script>
+    <style>
+        /* Existing CSS styles */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        h1 {
+            color: #1db954;
+        }
+        #videoElement {
+            width: 400px;
+            height: 300px;
+            border: 2px solid #1db954;
+            border-radius: 10px;
+        }
+        /* Updated CSS for Captured Images */
+        #capturedImages {
+            display: flex;
+            flex-wrap: wrap;
+            margin: 10px 0;
+            max-height: 200px;
+            overflow-y: auto;
+            justify-content: center; /* Center the thumbnails */
+        }
+        .image-container {
+            margin: 10px;
+            text-align: center;
+        }
+        .image-container canvas {
+            width: 100px; /* Increased from 60px to 100px */
+            height: 100px; /* Increased from 60px to 100px */
+            border-radius: 5px;
+            border: 2px solid #1db954;
+        }
+        .error-text {
+            margin-top: 5px;
+            font-size: 14px;
+            color: #ff4d4d;
+        }
+        #sliderContainer {
+            display: flex;
+            flex-direction: column;
+            width: 400px;
+        }
+        .slider {
+            margin: 10px 0;
+        }
+        #buttons {
+            margin: 15px 0;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        button {
+            padding: 8px 12px;
+            margin: 5px;
+            background-color: #1db954;
+            border: none;
+            border-radius: 5px;
+            color: #ffffff;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #17a44d;
+        }
+        canvas#generatedImage {
+            width: 400px;
+            height: 300px;
+            border: 2px solid #1db954;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        /* New CSS for Layer Structure */
+        .layer-structure {
+            width: 800px;
+            background-color: #1e1e1e;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .layer-section {
+            margin-bottom: 20px;
+        }
+        .layer-section h2, .layer-section h3 {
+            color: #1db954;
+            margin-bottom: 10px;
+        }
+        .layers-container {
+            display: flex;
+            flex-direction: column;
+        }
+        .layer {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .layer input, .layer select {
+            margin-right: 10px;
+            padding: 5px;
+            border: none;
+            border-radius: 5px;
+        }
+        .layer button {
+            background-color: #ff4d4d;
+        }
+        .add-layer-button {
+            background-color: #1db954;
+            align-self: flex-start;
+        }
+        #buildModelButton {
+            padding: 10px 20px;
+            background-color: #f0ad4e;
+        }
+        #buildModelButton:hover {
+            background-color: #ec971f;
+        }
+        /* New CSS for Resolution Control */
+        .resolution-control {
+            width: 800px;
+            background-color: #1e1e1e;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .resolution-control div {
+            display: flex;
+            align-items: center;
+        }
+        .resolution-control label {
+            margin-right: 10px;
+            font-size: 16px;
+        }
+        .resolution-control input {
+            width: 80px;
+            padding: 5px;
+            border: none;
+            border-radius: 5px;
+            margin-right: 20px;
+        }
+        .resolution-control button {
+            padding: 6px 10px;
+            background-color: #1db954;
+            border: none;
+            border-radius: 5px;
+            color: #ffffff;
+            cursor: pointer;
+        }
+        .resolution-control button:hover {
+            background-color: #17a44d;
+        }
+        /* New CSS for Continue Training Percentage Slider */
+        .training-percentage-control {
+            width: 400px;
+            background-color: #1e1e1e;
+            padding: 10px;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .training-percentage-control label {
+            margin-right: 10px;
+            font-size: 16px;
+        }
+        .training-percentage-control input {
+            width: 200px;
+            margin-right: 10px;
+        }
+        /* New CSS for Save and Load Buttons */
+        #saveLoadButtons {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        #saveLoadButtons button {
+            background-color: #1db954;
+        }
+        #saveLoadButtons button:hover {
+            background-color: #17a44d;
+        }
+        /* Style for hidden file input */
+        #loadModelInput {
+            display: none;
+        }
+        /* New CSS for Interrupt Training Button */
+        #interruptTrainButton {
+            background-color: #ff4d4d;
+        }
+        #interruptTrainButton:hover {
+            background-color: #e60000;
+        }
+    </style>
+</head>
+<body>
+    <h1>Interactive VAE with Webcam</h1>
+    
+    <!-- Resolution Control -->
+    <div class="resolution-control">
+        <div>
+            <label for="inputWidth">Resolution:</label>
+            <input type="number" id="inputWidth" min="16" max="512" value="64">
+            <input type="number" id="inputHeight" min="16" max="512" value="64">
+        </div>
+        <div>
+            <button id="updateResolutionButton">Update Resolution</button>
+        </div>
+    </div>
+    
+    <!-- Webcam Video Element -->
+    <video id="videoElement" autoplay></video>
+    
+    <!-- Buttons for VAE Operations -->
+    <div id="buttons">
+        <button id="captureButton">Capture Image</button>
+        <button id="trainButton">Train</button>
+        <button id="interruptTrainButton" style="display: none;">Interrupt Training</button> <!-- New Interrupt Button -->
+        <button id="continueTrainButton">Continue Training</button>
+        <button id="resetTrainingButton">Reset Training</button>
+        <button id="randomizeButton">Randomize Latent Space</button>
+        <button id="liveModeButton">Toggle Live Mode</button>
+        
+        <!-- New: Save and Load Model Buttons -->
+        <div id="saveLoadButtons">
+            <button id="saveModelButton">Save Model</button>
+            <button id="loadModelButton">Load Model</button>
+            <input type="file" id="loadModelInput" accept=".json,.bin" multiple>
+        </div>
+    </div>
+    
+    <!-- Training Percentage Slider -->
+    <div class="training-percentage-control">
+        <label for="trainingPercentage">Training Sample Percentage (%):</label>
+        <input type="range" id="trainingPercentage" min="10" max="100" value="90">
+        <span id="trainingPercentageValue">90%</span>
+    </div>
+    
+    <!-- Captured Images Display -->
+    <div id="capturedImages"></div>
+    
+    <!-- Generated Image Canvas -->
+    <canvas id="generatedImage" width="400" height="300"></canvas>
+    
+    <!-- Sliders for Latent Space -->
+    <div id="sliderContainer"></div>
+    
+    <!-- New: Layer Structure UI -->
+    <div class="layer-structure">
+        <h2>Layer Structure Configuration</h2>
+        
+        <!-- Encoder Configuration -->
+        <div class="layer-section" id="encoderSection">
+            <h3>Encoder</h3>
+            <div class="layers-container" id="encoderLayers">
+                <!-- Default Encoder Layers -->
+                <div class="layer">
+                    <input type="number" min="1" placeholder="Units" value="256" class="units-input">
+                    <select class="activation-select">
+                        <option value="relu">ReLU</option>
+                        <option value="tanh">Tanh</option>
+                        <option value="sigmoid">Sigmoid</option>
+                        <option value="leakyrelu">LeakyReLU</option>
+                        <option value="elu">ELU</option>
+                    </select>
+                    <button class="remove-layer-button">Remove</button>
+                </div>
+                <div class="layer">
+                    <input type="number" min="1" placeholder="Units" value="128" class="units-input">
+                    <select class="activation-select">
+                        <option value="relu">ReLU</option>
+                        <option value="tanh">Tanh</option>
+                        <option value="sigmoid">Sigmoid</option>
+                        <option value="leakyrelu">LeakyReLU</option>
+                        <option value="elu">ELU</option>
+                    </select>
+                    <button class="remove-layer-button">Remove</button>
+                </div>
+                <!-- Latent Layer -->
+                <div class="layer latent-layer">
+                    <input type="number" min="1" placeholder="Latent Units" value="15" class="units-input">
+                    <select class="activation-select">
+                        <option value="relu">ReLU</option>
+                        <option value="tanh">Tanh</option>
+                        <option value="sigmoid">Sigmoid</option>
+                        <option value="leakyrelu">LeakyReLU</option>
+                        <option value="elu">ELU</option>
+                    </select>
+                    <button class="remove-layer-button">Remove</button>
+                </div>
+            </div>
+            <button class="add-layer-button" id="addEncoderLayer">Add Encoder Layer</button>
+        </div>
+        
+        <!-- Decoder Configuration -->
+        <div class="layer-section" id="decoderSection">
+            <h3>Decoder</h3>
+            <div class="layers-container" id="decoderLayers">
+                <!-- Decoder Layers will be mirrored automatically -->
+                <!-- Initially, mirror of encoderLayers in reverse -->
+            </div>
+            <button class="add-layer-button" id="addDecoderLayer" disabled>Add Decoder Layer</button>
+            <p style="color: #ff4d4d; font-size: 14px;">* Decoder layers are mirrored automatically based on Encoder configuration.</p>
+        </div>
+        
+        <!-- Build Model Button -->
+        <button id="buildModelButton">Build Model</button>
+    </div>
+    
+    <script>
+        // Define and register the custom SamplingLayer
+        class SamplingLayer extends tf.layers.Layer {
+            constructor(latentDim, config = {}) {
+                super(config);
+                this.latentDim = latentDim;
+            }
+
+            computeOutputShape(inputShapes) {
+                const [meanShape, logvarShape] = inputShapes;
+                return [meanShape[0], this.latentDim];
+            }
+
+            call(inputs, kwargs) {
+                const [mean, logvar] = inputs;
+                if (!Number.isInteger(this.latentDim) || this.latentDim <= 0) {
+                    throw new Error(`Invalid latentDim:${this.latentDim}. Must be a positive integer.`);
+                }
+                const epsilon = tf.randomNormal([mean.shape[0], this.latentDim]);
+                const std = tf.exp(logvar.mul(0.5));
+                return tf.tidy(() => mean.add(std.mul(epsilon)));
+            }
+
+            getConfig() {
+                const baseConfig = super.getConfig();
+                return { ...baseConfig, latentDim: this.latentDim };
+            }
+
+            static className = 'SamplingLayer';
+
+            static fromConfig(config) {
+                return new SamplingLayer(config.latentDim, config);
+            }
+        }
+
+        // Register the custom layer to enable serialization/deserialization
+        tf.serialization.registerClass(SamplingLayer);
+
+        let resolution = { width: 64, height: 64 }; // Unified resolution
+        let latentDim = 15; // Initialized from the latent layer
+        let capturedImages = [];
+        let capturedErrors = []; // Array to store per-image errors
+        let encoder, decoder, autoencoder;
+        let liveModeActive = false;
+        let liveModeAnimationFrame;
+        let isTraining = false; // Flag to control training state
+        const videoElement = document.getElementById('videoElement');
+        const generatedCanvas = document.getElementById('generatedImage');
+        const generatedCtx = generatedCanvas.getContext('2d');
+
+        // Initialize webcam
+        async function initWebcam() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                videoElement.srcObject = stream;
+            } catch (err) {
+                alert('Error accessing webcam: ' + err);
+            }
+        }
+
+        // Capture image from webcam
+        function captureImage() {
+            const canvas = document.createElement('canvas');
+            canvas.width = resolution.width;
+            canvas.height = resolution.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(videoElement, 0, 0, resolution.width, resolution.height);
+            const imageTensor = tf.tidy(() => tf.browser.fromPixels(canvas).toFloat().div(255));
+            capturedImages.push(imageTensor);
+            capturedErrors.push(null); // Initialize with null error
+
+            // Display captured image with error text
+            const displayContainer = document.createElement('div');
+            displayContainer.className = 'image-container';
+
+            const displayCanvas = document.createElement('canvas');
+            displayCanvas.width = 100; // Increased size
+            displayCanvas.height = 100; // Increased size
+            const displayCtx = displayCanvas.getContext('2d');
+            displayCtx.drawImage(canvas, 0, 0, 100, 100); // Adjusted size
+            displayContainer.appendChild(displayCanvas);
+
+            const errorText = document.createElement('p');
+            errorText.className = 'error-text';
+            errorText.innerText = 'Error: N/A'; // Initial placeholder
+            displayContainer.appendChild(errorText);
+
+            document.getElementById('capturedImages').appendChild(displayContainer);
+        }
+
+        // Function to get layers configuration from UI
+        function getLayersConfig(sectionId) {
+            const layersContainer = document.getElementById(sectionId);
+            const layerDivs = layersContainer.getElementsByClassName('layer');
+            const layersConfig = [];
+            for (let layerDiv of layerDivs) {
+                const units = parseInt(layerDiv.querySelector('.units-input').value);
+                const activation = layerDiv.querySelector('.activation-select').value;
+                layersConfig.push({ units, activation });
+            }
+            return layersConfig;
+        }
+
+        // Function to mirror encoder layers for decoder
+        function mirrorDecoderLayers() {
+            const encoderLayers = getLayersConfig('encoderLayers');
+            const decoderLayersContainer = document.getElementById('decoderLayers');
+            decoderLayersContainer.innerHTML = ''; // Clear existing layers
+            // Reverse the encoder layers for decoder, excluding the last latent layer
+            for (let i = encoderLayers.length - 2; i >= 0; i--) {
+                const layerConfig = encoderLayers[i];
+                const layerDiv = document.createElement('div');
+                layerDiv.className = 'layer';
+
+                const unitsInput = document.createElement('input');
+                unitsInput.type = 'number';
+                unitsInput.min = '1';
+                unitsInput.placeholder = 'Units';
+                unitsInput.className = 'units-input';
+                unitsInput.value = layerConfig.units;
+                unitsInput.disabled = true; // Units are mirrored; user shouldn't modify decoder layers manually
+                layerDiv.appendChild(unitsInput);
+
+                const activationSelect = document.createElement('select');
+                activationSelect.className = 'activation-select';
+                const activations = ['relu', 'tanh', 'sigmoid', 'leakyrelu', 'elu'];
+                activations.forEach(act => {
+                    const option = document.createElement('option');
+                    option.value = act;
+                    option.text = act.charAt(0).toUpperCase() + act.slice(1);
+                    if (act === layerConfig.activation.toLowerCase()) {
+                        option.selected = true;
+                    }
+                    activationSelect.appendChild(option);
+                });
+                activationSelect.disabled = true; // Activation is mirrored; user shouldn't modify decoder layers manually
+                layerDiv.appendChild(activationSelect);
+
+                // No remove button for decoder layers since they are mirrored
+                decoderLayersContainer.appendChild(layerDiv);
+            }
+        }
+
+        // Create VAE model based on UI configurations
+        function createModels() {
+            const encoderLayers = getLayersConfig('encoderLayers');
+            const decoderLayers = getLayersConfig('decoderLayers'); // Will be mirrored automatically
+
+            // The last encoder layer is treated as the latent layer
+            const latentLayerConfig = encoderLayers[encoderLayers.length - 1];
+            latentDim = latentLayerConfig.units;
+
+            // Dispose existing models if any
+            if (autoencoder) {
+                autoencoder.dispose();
+                encoder.dispose();
+                decoder.dispose();
+            }
+
+            const inputLayer = tf.input({ shape: [resolution.width, resolution.height, 3] });
+
+            // Encoder
+            let x = tf.layers.flatten().apply(inputLayer);
+            for (let i = 0; i < encoderLayers.length - 1; i++) {
+                const layerConfig = encoderLayers[i];
+                let denseLayer = tf.layers.dense({ units: layerConfig.units });
+                x = denseLayer.apply(x);
+                if (layerConfig.activation.toLowerCase() === 'leakyrelu') {
+                    x = tf.layers.leakyReLU().apply(x);
+                } else if (layerConfig.activation.toLowerCase() === 'elu') {
+                    x = tf.layers.elu().apply(x);
+                } else {
+                    const activationLayer = tf.layers.activation({ activation: layerConfig.activation });
+                    x = activationLayer.apply(x);
+                }
+            }
+            // Latent Layer
+            const meanLayer = tf.layers.dense({ units: latentDim, name: 'mean' }).apply(x);
+            const logvarLayer = tf.layers.dense({ units: latentDim, name: 'logvar' }).apply(x);
+
+            // Sampling layer
+            const sampling = new SamplingLayer(latentDim).apply([meanLayer, logvarLayer]);
+
+            encoder = tf.model({ inputs: inputLayer, outputs: [meanLayer, logvarLayer] });
+
+            // Decoder
+            const decoderInput = tf.input({ shape: [latentDim] });
+            let y = decoderInput;
+            decoderLayers.forEach(layerConfig => {
+                let denseLayer = tf.layers.dense({ units: layerConfig.units });
+                y = denseLayer.apply(y);
+                if (layerConfig.activation.toLowerCase() === 'leakyrelu') {
+                    y = tf.layers.leakyReLU().apply(y);
+                } else if (layerConfig.activation.toLowerCase() === 'elu') {
+                    y = tf.layers.elu().apply(y);
+                } else {
+                    const activationLayer = tf.layers.activation({ activation: layerConfig.activation });
+                    y = activationLayer.apply(y);
+                }
+            });
+            const outputLayer = tf.layers.dense({ units: resolution.width * resolution.height * 3, activation: 'sigmoid' }).apply(y);
+            const reshapedOutput = tf.layers.reshape({ targetShape: [resolution.width, resolution.height, 3] }).apply(outputLayer);
+            decoder = tf.model({ inputs: decoderInput, outputs: reshapedOutput });
+
+            // Autoencoder: Connect encoder to decoder via sampling
+            const autoencoderOutput = decoder.apply(sampling);
+
+            autoencoder = tf.model({ inputs: inputLayer, outputs: autoencoderOutput });
+
+            // Define the optimizer (you can choose a different optimizer if desired)
+            const optimizer = tf.train.adam(); // Using Adam optimizer
+
+            // Compile the autoencoder
+            autoencoder.compile({ optimizer: "adamax", loss: 'meanSquaredError' });
+
+            alert('Model has been built successfully!');
+        }
+
+        // Randomize sliders
+        function randomizeSliders() {
+            const sliders = document.querySelectorAll('.slider');
+            sliders.forEach(slider => {
+                slider.value = (Math.random() * 6 - 3).toFixed(1);  // Range -3 to 3
+            });
+            generateImage();
+        }
+
+        // Train the model indefinitely
+        async function trainModelIndefinitely() {
+            if (capturedImages.length === 0) {
+                alert('No images captured! Please capture images before training.');
+                return;
+            }
+
+            if (!autoencoder) {
+                alert('Please build the model before training.');
+                return;
+            }
+
+            if (isTraining) {
+                alert('Training is already in progress.');
+                return;
+            }
+
+            isTraining = true;
+            document.getElementById('trainButton').disabled = true;
+            document.getElementById('trainButton').innerText = 'Training...';
+            document.getElementById('interruptTrainButton').style.display = 'inline-block';
+
+            try {
+                // Prepare dataset
+                const imageTensors = tf.stack(capturedImages);
+                console.log('Captured images:', imageTensors.shape);
+
+                while (isTraining) {
+                    // Determine if continuous training based on any additional logic if needed
+                    // For simplicity, training one epoch at a time indefinitely
+                    await autoencoder.fit(imageTensors, imageTensors, {
+                        epochs: 300,
+                        batchSize: Math.min(2000, imageTensors.shape[0]),
+                        callbacks: {
+                            onEpochEnd: async (epoch, logs) => {
+                                console.log(`Epoch: ${epoch + 1}, Loss: ${logs.loss}`);
+                                // Optionally update UI with training progress here
+                            }
+                        }
+                    });
+
+                    // After each epoch, compute and display errors
+                    await computeAndDisplayErrors();
+                }
+            } catch (err) {
+                console.error('Training interrupted or failed:', err);
+                alert('Training interrupted or failed. Check console for details.');
+            } finally {
+                isTraining = false;
+                document.getElementById('trainButton').disabled = false;
+                document.getElementById('trainButton').innerText = 'Train';
+                document.getElementById('interruptTrainButton').style.display = 'none';
+                console.log('Training has been stopped.');
+            }
+        }
+
+        // Function to compute and display errors for each captured image
+        async function computeAndDisplayErrors() {
+            const imageContainers = document.querySelectorAll('.image-container');
+            for (let i = 0; i < capturedImages.length; i++) {
+                const imageTensor = capturedImages[i].expandDims(0); // Add batch dimension
+                const prediction = autoencoder.predict(imageTensor);
+                const mse = tf.tidy(() => {
+                    const squaredDiff = tf.square(prediction.sub(imageTensor));
+                    const mseValue = tf.mean(squaredDiff).dataSync()[0];
+                    return mseValue;
+                });
+                capturedErrors[i] = mse;
+                imageContainers[i].querySelector('.error-text').innerText = `Error: ${mse.toFixed(4)}`;
+                imageTensor.dispose();
+                prediction.dispose();
+            }
+        }
+
+        // Reset training
+        function resetTraining() {
+            if (autoencoder) {
+                autoencoder.dispose();
+                encoder.dispose();
+                decoder.dispose();
+                autoencoder = null;
+                encoder = null;
+                decoder = null;
+                alert('Model has been reset. You can build a new model with the desired layer structure.');
+            } else {
+                alert('No trained model to reset.');
+            }
+        }
+
+        // Initialize the application
+        async function init() {
+            await initWebcam();
+            createSliders();
+            mirrorDecoderLayers(); // Ensure decoder is mirrored initially
+        }
+
+        // Create sliders for latent space
+        function createSliders() {
+            const sliderContainer = document.getElementById('sliderContainer');
+            sliderContainer.innerHTML = '';
+            for (let i = 0; i < latentDim; i++) {
+                const sliderDiv = document.createElement('div');
+                sliderDiv.className = 'slider-container';
+                const label = document.createElement('label');
+                label.innerText = `Latent Dim ${i + 1}`;
+                sliderDiv.appendChild(label);
+
+                const slider = document.createElement('input');
+                slider.type = 'range';
+                slider.min = -100;
+                slider.max = 100;
+                slider.step = 0.1;
+                slider.value = 0;
+                slider.className = 'slider';
+                slider.addEventListener('input', generateImage);
+                sliderDiv.appendChild(slider);
+
+                sliderContainer.appendChild(sliderDiv);
+            }
+        }
+
+        // Create layer UI elements dynamically
+        function setupLayerControls() {
+            // Encoder: Add Layer
+            document.getElementById('addEncoderLayer').addEventListener('click', () => {
+                const encoderLayers = document.getElementById('encoderLayers');
+                const newLayer = createLayerElement(false);
+                encoderLayers.appendChild(newLayer);
+                mirrorDecoderLayers(); // Update decoder to mirror encoder
+                // Update latentDim based on the new latent layer
+                const encoderConfigs = getLayersConfig('encoderLayers');
+                if (encoderConfigs.length > 0) {
+                    const lastLayer = encoderConfigs[encoderConfigs.length - 1];
+                    latentDim = lastLayer.units;
+                    createSliders();
+                }
+            });
+
+            // Decoder: Add Layer (Disabled as decoder is mirrored automatically)
+            document.getElementById('addDecoderLayer').addEventListener('click', () => {
+                alert('Decoder layers are mirrored automatically based on Encoder configuration.');
+            });
+
+            // Remove Layer Buttons
+            // Delegated event listener for dynamically added remove buttons
+            document.getElementById('encoderLayers').addEventListener('click', (event) => {
+                if (event.target.classList.contains('remove-layer-button')) {
+                    event.target.parentElement.remove();
+                    mirrorDecoderLayers(); // Update decoder to mirror encoder
+                    // Update latentDim based on the new latent layer
+                    const encoderConfigs = getLayersConfig('encoderLayers');
+                    if (encoderConfigs.length === 0) {
+                        latentDim = 15; // Reset to default
+                        createSliders();
+                    } else {
+                        const lastLayer = encoderConfigs[encoderConfigs.length - 1];
+                        latentDim = lastLayer.units;
+                        createSliders();
+                    }
+                }
+            });
+        }
+
+        // Function to create a new layer UI element
+        function createLayerElement(isLatent = false) {
+            const layerDiv = document.createElement('div');
+            layerDiv.className = 'layer';
+            if (isLatent) {
+                layerDiv.classList.add('latent-layer');
+            }
+
+            const unitsInput = document.createElement('input');
+            unitsInput.type = 'number';
+            unitsInput.min = '1';
+            unitsInput.placeholder = isLatent ? 'Latent Units' : 'Units';
+            unitsInput.className = 'units-input';
+            unitsInput.value = isLatent ? '15' : '128';
+            layerDiv.appendChild(unitsInput);
+
+            const activationSelect = document.createElement('select');
+            activationSelect.className = 'activation-select';
+            const activations = ['relu', 'tanh', 'sigmoid', 'leakyrelu', 'elu'];
+            activations.forEach(act => {
+                const option = document.createElement('option');
+                option.value = act;
+                option.text = act.charAt(0).toUpperCase() + act.slice(1);
+                activationSelect.appendChild(option);
+            });
+            layerDiv.appendChild(activationSelect);
+
+            const removeButton = document.createElement('button');
+            removeButton.className = 'remove-layer-button';
+            removeButton.innerText = 'Remove';
+            layerDiv.appendChild(removeButton);
+
+            return layerDiv;
+        }
+
+        // Generate image from latent space
+        async function generateImage() {
+            if (!decoder) {
+                alert('Please build and train the model first.');
+                return;
+            }
+            const sliders = document.querySelectorAll('.slider');
+            const latentVector = Array.from(sliders, slider => parseFloat(slider.value));
+
+            await tf.tidy(() => {
+                const latentTensor = tf.tensor2d([latentVector]);
+                const generatedTensor = decoder.predict(latentTensor);
+                tf.browser.toPixels(generatedTensor.squeeze(), generatedCanvas);
+            });
+        }
+
+        // Function to set sliders based on latent vector (for Live Mode)
+        function setSliders(latentVectorArray) {
+            const sliders = document.querySelectorAll('.slider');
+            sliders.forEach((slider, index) => {
+                if (index < latentVectorArray.length) {
+                    slider.value = latentVectorArray[index];
+                }
+            });
+        }
+
+        // Capture button event
+        document.getElementById('captureButton').addEventListener('click', captureImage);
+
+        // Train button event - modified to start indefinite training
+        document.getElementById('trainButton').addEventListener('click', () => {
+            trainModelIndefinitely();
+        });
+
+        // Interrupt Training button event - new functionality
+        document.getElementById('interruptTrainButton').addEventListener('click', () => {
+            if (isTraining) {
+                isTraining = false;
+                console.log('Interrupting training...');
+            }
+        });
+
+        // Continue Train button event
+        document.getElementById('continueTrainButton').addEventListener('click', () => {
+            trainModel(true);
+        });
+
+        // Reset Training button event
+        document.getElementById('resetTrainingButton').addEventListener('click', resetTraining);
+
+        // Randomize button event
+        document.getElementById('randomizeButton').addEventListener('click', randomizeSliders);
+
+        // Build Model button event
+        document.getElementById('buildModelButton').addEventListener('click', () => {
+            createModels();
+            createSliders(); // Update sliders based on new latentDim
+        });
+
+        // Update Resolution button event
+        document.getElementById('updateResolutionButton').addEventListener('click', () => {
+            const newWidth = parseInt(document.getElementById('inputWidth').value);
+            const newHeight = parseInt(document.getElementById('inputHeight').value);
+
+            if (isNaN(newWidth) || isNaN(newHeight) ||
+                
+                newWidth > 512 || newHeight > 512) {
+                alert('Please enter valid resolutions (16x16 to 512x512).');
+                return;
+            }
+
+            resolution.width = newWidth;
+            resolution.height = newHeight;
+
+            // Update video and canvas sizes
+            videoElement.width = resolution.width;
+            videoElement.height = resolution.height;
+            generatedCanvas.width = resolution.width;
+            generatedCanvas.height = resolution.height;
+
+            // Clear captured images and errors
+            capturedImages.forEach(tensor => tensor.dispose());
+            capturedImages = [];
+            capturedErrors = [];
+            document.getElementById('capturedImages').innerHTML = '';
+
+            // Reset sliders
+            createSliders();
+
+            // If a model exists, reset it as resolution has changed
+            if (autoencoder) {
+                resetTraining();
+            }
+
+            alert(`Resolution updated to ${resolution.width}x${resolution.height}. Please build and train the model again.`);
+        });
+
+        // Live mode toggle
+        document.getElementById('liveModeButton').addEventListener('click', () => {
+            liveModeActive = !liveModeActive;
+            if (liveModeActive) {
+                document.getElementById('liveModeButton').innerText = 'Exit Live Mode';
+                if (!autoencoder) {
+                    alert('Please build and train the model before entering Live Mode.');
+                    liveModeActive = false;
+                    document.getElementById('liveModeButton').innerText = 'Toggle Live Mode';
+                    return;
+                }
+                enterLiveMode();
+            } else {
+                document.getElementById('liveModeButton').innerText = 'Toggle Live Mode';
+                cancelAnimationFrame(liveModeAnimationFrame);
+            }
+        });
+
+        // Function to perform live inference
+        async function enterLiveMode() {
+            if (!encoder || !decoder) {
+                alert('Model is not properly initialized.');
+                liveModeActive = false;
+                document.getElementById('liveModeButton').innerText = 'Toggle Live Mode';
+                return;
+            }
+
+            async function inferenceLoop() {
+                if (!liveModeActive) return;
+
+                // Capture current frame
+                const canvas = document.createElement('canvas');
+                canvas.width = resolution.width;
+                canvas.height = resolution.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(videoElement, 0, 0, resolution.width, resolution.height);
+                const imageTensor = tf.tidy(() => tf.browser.fromPixels(canvas).toFloat().div(255).expandDims(0));
+
+                // Encode the image to latent space
+                const [mean, logvar] = encoder.predict(imageTensor);
+                const latentVector = tf.tidy(() => {
+                    const epsilon = tf.randomNormal([mean.shape[0], latentDim]);
+                    const std = tf.exp(logvar.mul(0.5));
+                    return mean.add(std.mul(epsilon));
+                });
+
+                // Decode the latent vector to generate image
+                const generatedTensor = decoder.predict(latentVector);
+
+                // Display the generated image
+                tf.browser.toPixels(generatedTensor.squeeze(), generatedCanvas);
+
+                // Update sliders with the latent vector
+                const latentArray = latentVector.arraySync()[0]; // Get the latent vector as an array
+                setSliders(latentArray);
+
+                // Clean up tensors
+                imageTensor.dispose();
+                mean.dispose();
+                logvar.dispose();
+                latentVector.dispose();
+                generatedTensor.dispose();
+
+                // Continue the loop
+                liveModeAnimationFrame = requestAnimationFrame(inferenceLoop);
+            }
+
+            inferenceLoop();
+        }
+
+        // Save Model button event
+        document.getElementById('saveModelButton').addEventListener('click', () => {
+            if (!autoencoder) {
+                alert('No model available to save. Please build and train the model first.');
+                return;
+            }
+            autoencoder.save('downloads://vae-model').then(() => {
+                alert('Model saved successfully!');
+            }).catch(err => {
+                alert('Error saving model: ' + err);
+            });
+        });
+
+        // Load Model button event
+        document.getElementById('loadModelButton').addEventListener('click', () => {
+            document.getElementById('loadModelInput').click();
+        });
+
+        // Load Model input change event
+        document.getElementById('loadModelInput').addEventListener('change', async (event) => {
+            const files = Array.from(event.target.files);
+
+            if (files.length < 1) {
+                alert('Please select at least the model.json file.');
+                return;
+            }
+
+            // Validate file names
+            const hasModelJson = files.some(file => file.name.endsWith('model.json'));
+            const hasWeightsBin = files.some(file => file.name.endsWith('.bin'));
+
+            if (!hasModelJson || !hasWeightsBin) {
+                alert('Please ensure you have selected both model.json and weights.bin files.');
+                return;
+            }
+
+            // Sort files to ensure model.json comes first
+            files.sort((a, b) => {
+                if (a.name.endsWith('model.json')) return -1;
+                if (b.name.endsWith('model.json')) return 1;
+                return 0;
+            });
+
+            try {
+                // Ensure the SamplingLayer is registered
+                tf.serialization.registerClass(SamplingLayer);
+
+                // Load the autoencoder model
+                autoencoder = await tf.loadLayersModel(tf.io.browserFiles(files));
+                alert('Model loaded successfully!');
+
+                // Find the SamplingLayer
+                const samplingLayer = autoencoder.layers.find(layer => layer.getClassName() === 'SamplingLayer');
+                if (!samplingLayer) {
+                    alert('Loaded model does not contain a SamplingLayer. Cannot extract encoder and decoder.');
+                    return;
+                }
+
+                // Update latentDim based on the loaded model
+                const outputShape = samplingLayer.output.shape; // e.g., [null, latentDim]
+                latentDim = outputShape[outputShape.length - 1]; // Get the last dimension
+
+                // Ensure latentDim is a valid positive integer
+                if (typeof latentDim !== 'number' || isNaN(latentDim) || latentDim <= 0) {
+                    alert('Invalid latent dimension. Cannot proceed.');
+                    return;
+                }
+
+                console.log('Latent Dimension:', latentDim);
+
+                // Reconstruct the encoder
+                const meanLayer = autoencoder.getLayer('mean');
+                const logvarLayer = autoencoder.getLayer('logvar');
+                encoder = tf.model({ inputs: autoencoder.inputs, outputs: [meanLayer.output, logvarLayer.output] });
+
+                // Reconstruct the decoder
+                const samplingLayerIndex = autoencoder.layers.findIndex(layer => layer.getClassName() === 'SamplingLayer');
+                const decoderLayers = autoencoder.layers.slice(samplingLayerIndex + 1);
+
+                const decoderInput = tf.input({ shape: [latentDim] });
+                let x = decoderInput;
+                for (let layer of decoderLayers) {
+                    x = layer.apply(x);
+                }
+                decoder = tf.model({ inputs: decoderInput, outputs: x });
+
+                // Recreate sliders based on latentDim
+                createSliders();
+
+                // Update decoder layers in the UI
+                mirrorDecoderLayers();
+
+            } catch (err) {
+                console.error(err);
+                alert('Error loading model: ' + err);
+            }
+        });
+
+        // Initialize the application on page load
+        window.onload = () => {
+            init();
+            setupLayerControls();
+        };
+
+        // Update the trainingPercentageValue span when the slider changes
+        document.getElementById('trainingPercentage').addEventListener('input', (event) => {
+            document.getElementById('trainingPercentageValue').innerText = `${event.target.value}%`;
+        });
+
+    </script>
+</body>
+</html>
