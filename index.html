@@ -1,448 +1,1385 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Interactive VAE with Webcam</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.0.0/dist/tf.min.js"></script>
-    <style>
-        /* Existing CSS styles */
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #121212;
-            color: #ffffff;
+    <!DOCTYPE html>
+    <html lang="en">
 
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-        }
-        h1 {
-            color: #1db954;
-        }
-        #videoElement {
-            width: 400px;
-            height: 300px;
-            border: 2px solid #1db954;
-            border-radius: 10px;
-        }
-        /* Updated CSS for Captured Images */
-        #capturedImages {
-            display: flex;
-            flex-wrap: wrap;
-            margin: 10px 0;
-            max-height: 200px;
-            overflow-y: auto;
-            justify-content: center; /* Center the thumbnails */
-        }
-        .image-container {
-            margin: 10px;
-            text-align: center;
-        }
-        .image-container canvas {
-            width: 100px; /* Increased from 60px to 100px */
-            height: 100px; /* Increased from 60px to 100px */
-            border-radius: 5px;
-            border: 2px solid #1db954;
-        }
-        .error-text {
-            margin-top: 5px;
-            font-size: 14px;
-            color: #ff4d4d;
-        }
-        #sliderContainer {
-            display: flex;
-            flex-direction: column;
-            width: 400px;
-        }
-        .slider {
-            margin: 10px 0;
-        }
-        #buttons {
-            margin: 15px 0;
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-        button {
-            padding: 8px 12px;
-            margin: 5px;
-            background-color: #1db954;
-            border: none;
-            border-radius: 5px;
-            color: #ffffff;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #17a44d;
-        }
-        canvas#generatedImage {
-            width: 400px;
-            height: 300px;
-            border: 2px solid #1db954;
-            border-radius: 10px;
-            margin-top: 20px;
-        }
-        /* New CSS for Layer Structure */
-        .layer-structure {
-            width: 800px;
-            background-color: #1e1e1e;
-            padding: 15px;
-            border-radius: 10px;
-            margin: 20px 0;
-        }
-        .layer-section {
-            margin-bottom: 20px;
-        }
-        .layer-section h2, .layer-section h3 {
-            color: #1db954;
-            margin-bottom: 10px;
-        }
-        .layers-container {
-            display: flex;
-            flex-direction: column;
-        }
-        .layer {
-            display: flex;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        .layer input, .layer select {
-            margin-right: 10px;
-            padding: 5px;
-            border: none;
-            border-radius: 5px;
-        }
-        .layer button {
-            background-color: #ff4d4d;
-        }
-        .add-layer-button {
-            background-color: #1db954;
-            align-self: flex-start;
-        }
-        #buildModelButton {
-            padding: 10px 20px;
-            background-color: #f0ad4e;
-        }
-        #buildModelButton:hover {
-            background-color: #ec971f;
-        }
-        /* New CSS for Resolution Control */
-        .resolution-control {
-            width: 800px;
-            background-color: #1e1e1e;
-            padding: 15px;
-            border-radius: 10px;
-            margin: 20px 0;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .resolution-control div {
-            display: flex;
-            align-items: center;
-        }
-        .resolution-control label {
-            margin-right: 10px;
-            font-size: 16px;
-        }
-        .resolution-control input {
-            width: 80px;
-            padding: 5px;
-            border: none;
-            border-radius: 5px;
-            margin-right: 20px;
-        }
-        .resolution-control button {
-            padding: 6px 10px;
-            background-color: #1db954;
-            border: none;
-            border-radius: 5px;
-            color: #ffffff;
-            cursor: pointer;
-        }
-        .resolution-control button:hover {
-            background-color: #17a44d;
-        }
-        /* New CSS for Continue Training Percentage Slider */
-        .training-percentage-control {
-            width: 400px;
-            background-color: #1e1e1e;
-            padding: 10px;
-            border-radius: 10px;
-            margin: 20px 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .training-percentage-control label {
-            margin-right: 10px;
-            font-size: 16px;
-        }
-        .training-percentage-control input {
-            width: 200px;
-            margin-right: 10px;
-        }
-        /* New CSS for Save and Load Buttons */
-        #saveLoadButtons {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            margin-top: 10px;
-        }
-        #saveLoadButtons button {
-            background-color: #1db954;
-        }
-        #saveLoadButtons button:hover {
-            background-color: #17a44d;
-        }
-        /* Style for hidden file input */
-        #loadModelInput {
-            display: none;
-        }
-        /* New CSS for Interrupt Training Button */
-        #interruptTrainButton {
-            background-color: #ff4d4d;
-        }
-        #interruptTrainButton:hover {
-            background-color: #e60000;
-        }
-    </style>
-</head>
-<body>
-    <h1>Interactive VAE with Webcam</h1>
-    
-    <!-- Resolution Control -->
-    <div class="resolution-control">
-        <div>
-            <label for="inputWidth">Resolution:</label>
-            <input type="number" id="inputWidth" min="16" max="512" value="64">
-            <input type="number" id="inputHeight" min="16" max="512" value="64">
-        </div>
-        <div>
-            <button id="updateResolutionButton">Update Resolution</button>
-        </div>
-    </div>
-    
-    <!-- Webcam Video Element -->
-    <video id="videoElement" autoplay></video>
-    
-    <!-- Buttons for VAE Operations -->
-    <div id="buttons">
-        <button id="captureButton">Capture Image</button>
-        <button id="trainButton">Train</button>
-        <button id="interruptTrainButton" style="display: none;">Interrupt Training</button> <!-- New Interrupt Button -->
-        <button id="continueTrainButton">Continue Training</button>
-        <button id="resetTrainingButton">Reset Training</button>
-        <button id="randomizeButton">Randomize Latent Space</button>
-        <button id="liveModeButton">Toggle Live Mode</button>
-        
-        <!-- New: Save and Load Model Buttons -->
-        <div id="saveLoadButtons">
-            <button id="saveModelButton">Save Model</button>
-            <button id="loadModelButton">Load Model</button>
-            <input type="file" id="loadModelInput" accept=".json,.bin" multiple>
-        </div>
-    </div>
-    
-    <!-- Training Percentage Slider -->
-    <div class="training-percentage-control">
-        <label for="trainingPercentage">Training Sample Percentage (%):</label>
-        <input type="range" id="trainingPercentage" min="10" max="100" value="90">
-        <span id="trainingPercentageValue">90%</span>
-    </div>
-    
-    <!-- Captured Images Display -->
-    <div id="capturedImages"></div>
-    
-    <!-- Generated Image Canvas -->
-    <canvas id="generatedImage" width="400" height="300"></canvas>
-    
-    <!-- Sliders for Latent Space -->
-    <div id="sliderContainer"></div>
-    
-    <!-- New: Layer Structure UI -->
-    <div class="layer-structure">
-        <h2>Layer Structure Configuration</h2>
-        
-        <!-- Encoder Configuration -->
-        <div class="layer-section" id="encoderSection">
-            <h3>Encoder</h3>
-            <div class="layers-container" id="encoderLayers">
-                <!-- Default Encoder Layers -->
-                <div class="layer">
-                    <input type="number" min="1" placeholder="Units" value="256" class="units-input">
-                    <select class="activation-select">
-                        <option value="relu">ReLU</option>
-                        <option value="tanh">Tanh</option>
-                        <option value="sigmoid">Sigmoid</option>
-                        <option value="leakyrelu">LeakyReLU</option>
-                        <option value="elu">ELU</option>
-                    </select>
-                    <button class="remove-layer-button">Remove</button>
-                </div>
-                <div class="layer">
-                    <input type="number" min="1" placeholder="Units" value="128" class="units-input">
-                    <select class="activation-select">
-                        <option value="relu">ReLU</option>
-                        <option value="tanh">Tanh</option>
-                        <option value="sigmoid">Sigmoid</option>
-                        <option value="leakyrelu">LeakyReLU</option>
-                        <option value="elu">ELU</option>
-                    </select>
-                    <button class="remove-layer-button">Remove</button>
-                </div>
-                <!-- Latent Layer -->
-                <div class="layer latent-layer">
-                    <input type="number" min="1" placeholder="Latent Units" value="15" class="units-input">
-                    <select class="activation-select">
-                        <option value="relu">ReLU</option>
-                        <option value="tanh">Tanh</option>
-                        <option value="sigmoid">Sigmoid</option>
-                        <option value="leakyrelu">LeakyReLU</option>
-                        <option value="elu">ELU</option>
-                    </select>
-                    <button class="remove-layer-button">Remove</button>
-                </div>
-            </div>
-            <button class="add-layer-button" id="addEncoderLayer">Add Encoder Layer</button>
-        </div>
-        
-        <!-- Decoder Configuration -->
-        <div class="layer-section" id="decoderSection">
-            <h3>Decoder</h3>
-            <div class="layers-container" id="decoderLayers">
-                <!-- Decoder Layers will be mirrored automatically -->
-                <!-- Initially, mirror of encoderLayers in reverse -->
-            </div>
-            <button class="add-layer-button" id="addDecoderLayer" disabled>Add Decoder Layer</button>
-            <p style="color: #ff4d4d; font-size: 14px;">* Decoder layers are mirrored automatically based on Encoder configuration.</p>
-        </div>
-        
-        <!-- Build Model Button -->
-        <button id="buildModelButton">Build Model</button>
-    </div>
-    
-    <script>
-        // Define and register the custom SamplingLayer
-        class SamplingLayer extends tf.layers.Layer {
-            constructor(latentDim, config = {}) {
-                super(config);
-                this.latentDim = latentDim;
+    <head>
+        <meta charset="UTF-8">
+        <title>Interactive Autoencoder with Webcam</title>
+        <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.0.0/dist/tf.min.js"></script>
+        <style>
+            /* Existing CSS styles */
+            body {
+                font-family: Arial, sans-serif;
+                background-color: #121212;
+                color: #ffffff;
+
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding: 20px;
             }
 
-            computeOutputShape(inputShapes) {
-                const [meanShape, logvarShape] = inputShapes;
-                return [meanShape[0], this.latentDim];
+            h1 {
+                color: #1db954;
             }
 
-            call(inputs, kwargs) {
-                const [mean, logvar] = inputs;
-                if (!Number.isInteger(this.latentDim) || this.latentDim <= 0) {
-                    throw new Error(`Invalid latentDim:${this.latentDim}. Must be a positive integer.`);
+            #videoElement {
+                width: 400px;
+                height: 300px;
+                border: 2px solid #1db954;
+                border-radius: 10px;
+            }
+
+            /* Updated CSS for Captured Images */
+            #capturedImages {
+                display: flex;
+                flex-wrap: wrap;
+                margin: 10px 0;
+                max-height: 200px;
+                overflow-y: auto;
+                justify-content: center;
+                /* Center the thumbnails */
+            }
+
+            .image-container {
+                margin: 10px;
+                text-align: center;
+                position: relative;
+                background-color: #2c2c2c;
+                padding: 10px;
+                border-radius: 10px;
+            }
+
+            .image-container canvas {
+                width: 100px;
+                /* Increased from 60px to 100px */
+                height: 100px;
+                /* Increased from 60px to 100px */
+                border-radius: 5px;
+                border: 2px solid #1db954;
+                cursor: pointer;
+            }
+
+            .error-text {
+                margin-top: 5px;
+                font-size: 14px;
+                color: #ff4d4d;
+            }
+
+            .add-button {
+                margin-top: 5px;
+                padding: 5px 10px;
+                background-color: #1db954;
+                border: none;
+                border-radius: 5px;
+                color: #ffffff;
+                cursor: pointer;
+                font-size: 14px;
+            }
+
+            .add-button:hover {
+                background-color: #17a44d;
+            }
+
+            #sliderContainer {
+                display: flex;
+                flex-direction: column;
+                width: 400px;
+            }
+
+            .slider {
+                margin: 10px 0;
+            }
+
+            #buttons {
+                margin: 15px 0;
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            button {
+                padding: 8px 12px;
+                margin: 5px;
+                background-color: #1db954;
+                border: none;
+                border-radius: 5px;
+                color: #ffffff;
+                cursor: pointer;
+            }
+
+            button:hover {
+                background-color: #17a44d;
+            }
+
+            canvas#generatedImage {
+                width: 400px;
+                height: 300px;
+                border: 2px solid #1db954;
+                border-radius: 10px;
+                margin-top: 20px;
+            }
+
+            /* New CSS for Layer Structure */
+            .layer-structure {
+                width: 800px;
+                background-color: #1e1e1e;
+                padding: 15px;
+                border-radius: 10px;
+                margin: 20px 0;
+            }
+
+            .layer-section {
+                margin-bottom: 20px;
+            }
+
+            .layer-section h2,
+            .layer-section h3 {
+                color: #1db954;
+                margin-bottom: 10px;
+            }
+
+            .layers-container {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .layer {
+                display: flex;
+                align-items: center;
+                margin-bottom: 10px;
+            }
+
+            .layer input,
+            .layer select {
+                margin-right: 10px;
+                padding: 5px;
+                border: none;
+                border-radius: 5px;
+            }
+
+            .layer button {
+                background-color: #ff4d4d;
+                padding: 5px 10px;
+                color: #ffffff;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+            }
+
+            .layer button:hover {
+                background-color: #e60000;
+            }
+
+            .add-layer-button {
+                background-color: #1db954;
+                align-self: flex-start;
+                padding: 8px 12px;
+                margin-top: 10px;
+            }
+
+            .add-layer-button:hover {
+                background-color: #17a44d;
+            }
+
+            #buildModelButton {
+                padding: 10px 20px;
+                background-color: #f0ad4e;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+            }
+
+            #buildModelButton:hover {
+                background-color: #ec971f;
+            }
+
+            /* New CSS for Resolution Control */
+            .resolution-control {
+                width: 800px;
+                background-color: #1e1e1e;
+                padding: 15px;
+                border-radius: 10px;
+                margin: 20px 0;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+
+            .resolution-control div {
+                display: flex;
+                align-items: center;
+            }
+
+            .resolution-control label {
+                margin-right: 10px;
+                font-size: 16px;
+            }
+
+            .resolution-control input {
+                width: 80px;
+                padding: 5px;
+                border: none;
+                border-radius: 5px;
+                margin-right: 20px;
+            }
+
+            .resolution-control button {
+                padding: 6px 10px;
+                background-color: #1db954;
+                border: none;
+                border-radius: 5px;
+                color: #ffffff;
+                cursor: pointer;
+            }
+
+            .resolution-control button:hover {
+                background-color: #17a44d;
+            }
+
+            /* New CSS for Subset Percentage Control */
+            .subset-control {
+                width: 800px;
+                background-color: #1e1e1e;
+                padding: 15px;
+                border-radius: 10px;
+                margin: 20px 0;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+
+            .subset-control div {
+                display: flex;
+                align-items: center;
+            }
+
+            .subset-control label {
+                margin-right: 10px;
+                font-size: 16px;
+            }
+
+            .subset-control input[type="range"] {
+                width: 200px;
+                margin-right: 10px;
+            }
+
+            .subset-control select {
+                padding: 5px;
+                border: none;
+                border-radius: 5px;
+            }
+
+            .subset-control span {
+                width: 30px;
+                text-align: center;
+            }
+
+            /* New CSS for Save and Load Buttons */
+            #saveLoadButtons {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                margin-top: 10px;
+            }
+
+            #saveLoadButtons button {
+                background-color: #1db954;
+                padding: 8px 12px;
+                margin: 5px;
+                border: none;
+                border-radius: 5px;
+                color: #ffffff;
+                cursor: pointer;
+            }
+
+            #saveLoadButtons button:hover {
+                background-color: #17a44d;
+            }
+
+            /* Style for hidden file input */
+            #loadModelInput {
+                display: none;
+            }
+
+            /* New CSS for Interrupt Training Button */
+            #interruptTrainButton {
+                background-color: #ff4d4d;
+                padding: 8px 12px;
+                border: none;
+                border-radius: 5px;
+                color: #ffffff;
+                cursor: pointer;
+            }
+
+            #interruptTrainButton:hover {
+                background-color: #e60000;
+            }
+
+            /* New CSS for Drag-and-Drop Area */
+            #dragDropArea {
+                width: 800px;
+                height: 150px;
+                border: 3px dashed #1db954;
+                border-radius: 10px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #1db954;
+                font-size: 18px;
+                margin: 20px 0;
+                transition: background-color 0.3s, color 0.3s;
+            }
+
+            #dragDropArea.dragover {
+                background-color: #1db954;
+                color: #121212;
+            }
+
+            /* New CSS for Comparator Section */
+            #comparatorSection {
+                width: 800px;
+                background-color: #1e1e1e;
+                padding: 15px;
+                border-radius: 10px;
+                margin: 20px 0;
+            }
+
+            #comparatorSection h2 {
+                color: #1db954;
+                margin-bottom: 10px;
+            }
+
+            .comparator-slots {
+                display: flex;
+                justify-content: space-around;
+                margin-bottom: 15px;
+            }
+
+            .comparator-slot {
+                position: relative;
+                width: 150px;
+                height: 150px;
+                border: 2px dashed #1db954;
+                border-radius: 10px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                background-color: #2c2c2c;
+            }
+
+            .comparator-slot img {
+                max-width: 100%;
+                max-height: 100%;
+                border-radius: 5px;
+            }
+
+            .comparator-buttons {
+                position: absolute;
+                bottom: 5px;
+                display: flex;
+                gap: 5px;
+            }
+
+            .comparator-buttons button {
+                padding: 2px 5px;
+                font-size: 12px;
+                background-color: #1db954;
+                border: none;
+                border-radius: 3px;
+                color: #ffffff;
+                cursor: pointer;
+            }
+
+            .comparator-buttons button:hover {
+                background-color: #17a44d;
+            }
+
+            #compareButton {
+                width: 100%;
+                padding: 10px;
+                background-color: #f0ad4e;
+                margin-bottom: 15px;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                color: #ffffff;
+                font-size: 16px;
+            }
+
+            #compareButton:hover {
+                background-color: #ec971f;
+            }
+
+            #comparisonVectorDisplay {
+                background-color: #2c2c2c;
+                padding: 10px;
+                border-radius: 5px;
+                overflow-x: auto;
+                max-height: 100px;
+                margin-bottom: 15px;
+                white-space: pre-wrap;
+            }
+
+            #comparisonControls {
+                display: none;
+                /* Hidden by default */
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+            }
+
+            #addDifferenceButton {
+                padding: 8px 12px;
+                background-color: #1db954;
+                border: none;
+                border-radius: 5px;
+                color: #ffffff;
+                cursor: pointer;
+            }
+
+            #addDifferenceButton:hover {
+                background-color: #17a44d;
+            }
+
+            #multiplierInput {
+                width: 100px;
+                padding: 5px;
+                border: none;
+                border-radius: 5px;
+                text-align: center;
+            }
+
+            /* ======= New CSS for Images per Minibatch Control ======= */
+            .batch-control {
+                width: 800px;
+                background-color: #1e1e1e;
+                padding: 15px;
+                border-radius: 10px;
+                margin: 20px 0;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+
+            .batch-control div {
+                display: flex;
+                align-items: center;
+            }
+
+            .batch-control label {
+                margin-right: 10px;
+                font-size: 16px;
+            }
+
+            .batch-control input[type="range"] {
+                width: 200px;
+                margin-right: 10px;
+            }
+
+            .batch-control span {
+                width: 50px;
+                text-align: center;
+                font-size: 16px;
+                color: #ffffff;
+            }
+
+            /* ======= End of New CSS for Images per Minibatch Control ======= */
+        </style>
+    </head>
+
+    <body>
+        <h1>Interactive Autoencoder with Webcam</h1>
+
+        <!-- Resolution Control -->
+        <div class="resolution-control">
+            <div>
+                <label for="inputWidth">Resolution:</label>
+                <input type="number" id="inputWidth" min="16" max="512" value="64">
+                <input type="number" id="inputHeight" min="16" max="512" value="64">
+            </div>
+            <div>
+                <button id="updateResolutionButton">Update Resolution</button>
+            </div>
+        </div>
+
+        <!-- Subset Percentage Control -->
+        <div class="subset-control">
+            <div>
+                <label for="subsetPercentage">Subset Percentage:</label>
+                <input type="range" id="subsetPercentage" min="10" max="100" value="90">
+                <span id="subsetPercentageValue">90%</span>
+            </div>
+            <div>
+                <label for="subsetMode">Subset Mode:</label>
+                <select id="subsetMode">
+                    <option value="harder">Harder (High Error)</option>
+                    <option value="easier">Easier (Low Error)</option>
+                    <option value="random">Random</option> <!-- New Option Added -->
+                </select>
+            </div>
+        </div>
+
+        <!-- ======= Dynamic Images per Minibatch Slider ======= -->
+        <!-- ======= Dynamic Images per Minibatch Slider ======= -->
+    <div class="batch-control">
+        <div>
+            <label for="batchSize">Images per Minibatch:</label>
+            <input type="range" id="batchSize" min="1" max="100000" value="32">
+            <span id="batchSizeValue">32</span>
+        </div>
+        
+        <!-- New Epoch Count Slider -->
+        <div>
+            <label for="epochCount">Epoch Count:</label>
+            <input type="range" id="epochCount" min="1" max="100" value="3">
+            <span id="epochCountValue">3</span>
+        </div>
+    </div>
+    <!-- ======= End of Dynamic Images per Minibatch Slider ======= -->
+
+
+        <!-- ======= End of Dynamic Images per Minibatch Slider ======= -->
+
+        <!-- Drag-and-Drop Area -->
+        <div id="dragDropArea">
+            Drag and drop images here to add as training data
+        </div>
+
+        <!-- Webcam Video Element -->
+        <video id="videoElement" autoplay></video>
+
+        <!-- Buttons for Autoencoder Operations -->
+        <div id="buttons">
+            <button id="captureButton">Capture Image</button>
+            <button id="trainButton">Train</button>
+            <button id="interruptTrainButton" style="display: none;">Interrupt Training</button>
+            <!-- New Interrupt Button -->
+            <button id="continueTrainButton">Continue Training</button>
+            <button id="resetTrainingButton">Reset Training</button>
+            <button id="randomizeButton">Randomize Latent Space</button>
+            <button id="liveModeButton">Toggle Live Mode</button>
+            <button id="latentWalkButton">Start Latent Walk</button>
+
+            <!-- New: Save and Load Model Buttons -->
+            <div id="saveLoadButtons">
+                <button id="saveModelButton">Save Model</button>
+                <button id="loadModelButton">Load Model</button>
+                <input type="file" id="loadModelInput" accept=".json,.bin" multiple>
+            </div>
+        </div>
+
+        <!-- Captured Images Display -->
+        <div id="capturedImages"></div>
+
+        <!-- Comparator Section -->
+        <div id="comparatorSection">
+            <h2>Image Comparator</h2>
+            <div class="comparator-slots">
+                <div class="comparator-slot" id="comparatorSlot1" data-slot="1">
+                    <span>+ Add Image</span>
+                    <div class="comparator-buttons" style="display: none;">
+                        <button class="addComparatorImage">+</button>
+                        <button class="removeComparatorImage">-</button>
+                    </div>
+                </div>
+                <div class="comparator-slot" id="comparatorSlot2" data-slot="2">
+                    <span>+ Add Image</span>
+                    <div class="comparator-buttons" style="display: none;">
+                        <button class="addComparatorImage">+</button>
+                        <button class="removeComparatorImage">-</button>
+                    </div>
+                </div>
+            </div>
+            <button id="compareButton">Compare</button>
+            <div id="comparisonVectorDisplay">Comparison Vector: N/A</div>
+
+            <div id="comparisonControls">
+                <button id="addDifferenceButton">Add Current Difference</button>
+                <div>
+                    <label for="multiplierInput">Multiplier:</label>
+                    <input type="number" id="multiplierInput" min="0" step="0.1" value="1">
+                </div>
+            </div>
+        </div>
+
+        <!-- Generated Image Canvas -->
+        <canvas id="generatedImage" width="400" height="300"></canvas>
+
+        <!-- Sliders for Latent Space -->
+        <div id="sliderContainer"></div>
+
+        <!-- New: Layer Structure UI -->
+        <div class="layer-structure">
+            <h2>Layer Structure Configuration</h2>
+
+            <!-- Encoder Configuration -->
+            <div class="layer-section" id="encoderSection">
+                <h3>Encoder</h3>
+                <div class="layers-container" id="encoderLayers">
+                    <!-- Default Encoder Layers -->
+                    <div class="layer">
+                        <input type="number" min="1" placeholder="Units" value="256" class="units-input">
+                        <select class="activation-select">
+                            <option value="relu">ReLU</option>
+                            <option value="tanh">Tanh</option>
+                            <option value="sigmoid">Sigmoid</option>
+                            <option value="leakyrelu">LeakyReLU</option>
+                            <option value="elu">ELU</option>
+                        </select>
+                        <button class="remove-layer-button">Remove</button>
+                    </div>
+                    <div class="layer">
+                        <input type="number" min="1" placeholder="Units" value="128" class="units-input">
+                        <select class="activation-select">
+                            <option value="relu">ReLU</option>
+                            <option value="tanh">Tanh</option>
+                            <option value="sigmoid">Sigmoid</option>
+                            <option value="leakyrelu">LeakyReLU</option>
+                            <option value="elu">ELU</option>
+                        </select>
+                        <button class="remove-layer-button">Remove</button>
+                    </div>
+                    <div class="layer">
+                        <input type="number" min="1" placeholder="Units" value="128" class="units-input">
+                        <select class="activation-select">
+                            <option value="relu">ReLU</option>
+                            <option value="tanh">Tanh</option>
+                            <option value="sigmoid">Sigmoid</option>
+                            <option value="leakyrelu">LeakyReLU</option>
+                            <option value="elu">ELU</option>
+                        </select>
+                        <button class="remove-layer-button">Remove</button>
+                    </div>
+                    <!-- Latent Layer -->
+                    <div class="layer latent-layer">
+                        <input type="number" min="1" placeholder="Latent Units" value="15" class="units-input">
+                        <select class="activation-select">
+                            <option value="relu">ReLU</option>
+                            <option value="tanh">Tanh</option>
+                            <option value="sigmoid">Sigmoid</option>
+                            <option value="leakyrelu">LeakyReLU</option>
+                            <option value="elu">ELU</option>
+                        </select>
+                        <button class="remove-layer-button">Remove</button>
+                    </div>
+                </div>
+                <button class="add-layer-button" id="addEncoderLayer">Add Encoder Layer</button>
+            </div>
+
+            <!-- Decoder Configuration -->
+            <div class="layer-section" id="decoderSection">
+                <h3>Decoder</h3>
+                <div class="layers-container" id="decoderLayers">
+                    <!-- Decoder Layers will be mirrored automatically -->
+                    <!-- Initially, mirror of encoderLayers in reverse -->
+                </div>
+                <button class="add-layer-button" id="addDecoderLayer" disabled>Add Decoder Layer</button>
+                <p style="color: #ff4d4d; font-size: 14px;">* Decoder layers are mirrored automatically based on Encoder
+                    configuration.</p>
+            </div>
+
+            <!-- Build Model Button -->
+            <button id="buildModelButton">Build Model</button>
+        </div>
+
+        <script>
+            // ======= Define and Register Custom Layers =======
+
+            // InstanceNormalization Layer (Same as before)
+        
+            // ======= Main JavaScript Code =======
+            let resolution = { width: 64, height: 64 }; // Unified resolution
+            let latentDim = 15; // Initialized from the latent layer
+            let capturedImages = [];
+            let capturedErrors = []; // Array to store per-image errors
+            let encoder, decoder, autoencoder;
+            let liveModeActive = false;
+            let liveModeAnimationFrame;
+            let isTraining = false; // Flag to control training state
+            const videoElement = document.getElementById('videoElement');
+            const generatedCanvas = document.getElementById('generatedImage');
+            const generatedCtx = generatedCanvas.getContext('2d');
+            let optimizer = tf.train.adam(); // Example with a learning rate of 0.001
+            tf.enableProdMode()
+            // Variables for Comparator Functionality
+            let comparatorSlots = [null, null]; // [imageIndex1, imageIndex2]
+            let comparisonVectors = []; // Array to store comparison vectors
+            tf.setBackend('webgl');
+            tf.ready().then(() => {
+                console.log("Backend:", tf.getBackend()); // Should output "webgl"
+            });
+
+            // Initialize webcam
+            async function initWebcam() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    videoElement.srcObject = stream;
+                } catch (err) {
+                    alert('Error accessing webcam: ' + err);
                 }
-                const epsilon = tf.randomNormal([mean.shape[0], this.latentDim]);
-                const std = tf.exp(logvar.mul(0.5));
-                return tf.tidy(() => mean.add(std.mul(epsilon)));
             }
 
-            getConfig() {
-                const baseConfig = super.getConfig();
-                return { ...baseConfig, latentDim: this.latentDim };
+            // Capture image from webcam
+            function captureImage() {
+                const canvas = document.createElement('canvas');
+                canvas.width = resolution.width;
+                canvas.height = resolution.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(videoElement, 0, 0, resolution.width, resolution.height);
+                const imageTensor = tf.tidy(() => tf.browser.fromPixels(canvas).toFloat().div(255));
+                capturedImages.push(imageTensor);
+                capturedErrors.push(null); // Initialize with null error
+
+                // Display captured image with error text and "+" button
+                const displayContainer = document.createElement('div');
+                displayContainer.className = 'image-container';
+                displayContainer.dataset.index = capturedImages.length - 1; // Store index
+
+                const displayCanvas = document.createElement('canvas');
+                displayCanvas.width = 100; // Increased size
+                displayCanvas.height = 100; // Increased size
+                const displayCtx = displayCanvas.getContext('2d');
+                displayCtx.drawImage(canvas, 0, 0, 100, 100); // Adjusted size
+                displayContainer.appendChild(displayCanvas);
+
+                const errorText = document.createElement('p');
+                errorText.className = 'error-text';
+                errorText.innerText = 'Error: N/A'; // Initial placeholder
+                displayContainer.appendChild(errorText);
+
+                // Add "+" button
+                const addButton = document.createElement('button');
+                addButton.className = 'add-button';
+                addButton.innerText = '+';
+                addButton.title = 'Add to Comparator';
+                addButton.addEventListener('click', () => {
+                    addImageToComparator(capturedImages.length - 1);
+                });
+                displayContainer.appendChild(addButton);
+
+                document.getElementById('capturedImages').appendChild(displayContainer);
+                setupImageClickEvents(); // Re-setup click events
             }
 
-            static className = 'SamplingLayer';
-
-            static fromConfig(config) {
-                return new SamplingLayer(config.latentDim, config);
+            // Function to get layers configuration from UI
+            function getLayersConfig(sectionId) {
+                const layersContainer = document.getElementById(sectionId);
+                const layerDivs = layersContainer.getElementsByClassName('layer');
+                const layersConfig = [];
+                for (let layerDiv of layerDivs) {
+                    const units = parseInt(layerDiv.querySelector('.units-input').value);
+                    const activation = layerDiv.querySelector('.activation-select').value;
+                    layersConfig.push({ units, activation });
+                }
+                return layersConfig;
             }
+
+            // Function to mirror encoder layers for decoder
+            function mirrorDecoderLayers() {
+                const encoderLayers = getLayersConfig('encoderLayers');
+                const decoderLayersContainer = document.getElementById('decoderLayers');
+                decoderLayersContainer.innerHTML = ''; // Clear existing layers
+                // Reverse the encoder layers for decoder, excluding the last latent layer
+                for (let i = encoderLayers.length - 1; i >= 0; i--) {
+                    const layerConfig = encoderLayers[i];
+                    const layerDiv = document.createElement('div');
+                    layerDiv.className = 'layer';
+
+                    const unitsInput = document.createElement('input');
+                    unitsInput.type = 'number';
+                    unitsInput.min = '1';
+                    unitsInput.placeholder = 'Units';
+                    unitsInput.className = 'units-input';
+                    unitsInput.value = layerConfig.units;
+                    unitsInput.disabled = true; // Units are mirrored; user shouldn't modify decoder layers manually
+                    layerDiv.appendChild(unitsInput);
+
+                    const activationSelect = document.createElement('select');
+                    activationSelect.className = 'activation-select';
+                    const activations = ['relu', 'tanh', 'sigmoid', 'leakyrelu', 'elu'];
+                    activations.forEach(act => {
+                        const option = document.createElement('option');
+                        option.value = act;
+                        option.text = act.charAt(0).toUpperCase() + act.slice(1);
+                        if (act === layerConfig.activation.toLowerCase()) {
+                            option.selected = true;
+                        }
+                        activationSelect.appendChild(option);
+                    });
+                    activationSelect.disabled = true; // Activation is mirrored; user shouldn't modify decoder layers manually
+                    layerDiv.appendChild(activationSelect);
+
+                    // No remove button for decoder layers since they are mirrored automatically
+                    decoderLayersContainer.appendChild(layerDiv);
+                }
+            }
+
+            // Create Autoencoder model based on UI configurations
+            function createModels() {
+        const encoderLayers = getLayersConfig('encoderLayers');
+        const decoderLayers = getLayersConfig('decoderLayers'); // Will be mirrored automatically
+
+        // The last encoder layer is treated as the latent layer
+        const latentLayerConfig = encoderLayers[encoderLayers.length - 1];
+        latentDim = latentLayerConfig.units;
+
+        // Dispose existing models if any
+        if (autoencoder) {
+            autoencoder.dispose();
+            encoder.dispose();
+            decoder.dispose();
         }
 
-        // Register the custom layer to enable serialization/deserialization
-        tf.serialization.registerClass(SamplingLayer);
+        const inputLayer = tf.input({ shape: [resolution.width, resolution.height, 3] });
 
-        let resolution = { width: 64, height: 64 }; // Unified resolution
-        let latentDim = 15; // Initialized from the latent layer
-        let capturedImages = [];
-        let capturedErrors = []; // Array to store per-image errors
-        let encoder, decoder, autoencoder;
-        let liveModeActive = false;
-        let liveModeAnimationFrame;
-        let isTraining = false; // Flag to control training state
-        const videoElement = document.getElementById('videoElement');
-        const generatedCanvas = document.getElementById('generatedImage');
-        const generatedCtx = generatedCanvas.getContext('2d');
+        // Encoder
+        let x = tf.layers.flatten().apply(inputLayer);
+        for (let i = 0; i < encoderLayers.length; i++) {
+            const layerConfig = encoderLayers[i];
+            let denseLayer = tf.layers.dense({ units: layerConfig.units, activation: layerConfig.activation });
+            x = denseLayer.apply(x);
+            // Add Batch Normalization
+            x = tf.layers.batchNormalization().apply(x);
+        }
+        // Encoder output is the latent vector
+        const latentLayer = x;
+        encoder = tf.model({ inputs: inputLayer, outputs: latentLayer });
 
-        // Initialize webcam
-        async function initWebcam() {
+        // Decoder
+        const decoderInput = tf.input({ shape: [latentDim] });
+        let y = decoderInput;
+        decoderLayers.forEach(layerConfig => {
+            let denseLayer = tf.layers.dense({ units: layerConfig.units, activation: layerConfig.activation });
+            y = denseLayer.apply(y);
+            // Add Batch Normalization
+            y = tf.layers.batchNormalization().apply(y);
+        });
+        const outputLayer = tf.layers.dense({ units: resolution.width * resolution.height * 3, activation: 'sigmoid' }).apply(y);
+        const reshapedOutput = tf.layers.reshape({ targetShape: [resolution.width, resolution.height, 3] }).apply(outputLayer);
+        decoder = tf.model({ inputs: decoderInput, outputs: reshapedOutput });
+
+        // Autoencoder: Connect encoder to decoder
+        autoencoder = tf.model({ inputs: encoder.input, outputs: decoder.apply(encoder.output) });
+
+        // Compile the autoencoder with the updated optimizer
+        autoencoder.compile({ optimizer: optimizer, loss: 'meanAbsoluteError' });
+
+        alert('Model has been built successfully with Batch Normalization!');
+    }
+
+    let latentWalkActive = false;
+let latentWalkAnimationFrame;
+
+document.getElementById('latentWalkButton').addEventListener('click', toggleLatentWalk);
+
+function toggleLatentWalk() {
+    latentWalkActive = !latentWalkActive;
+    document.getElementById('latentWalkButton').innerText = latentWalkActive ? 'Stop Latent Walk' : 'Start Latent Walk';
+
+    if (latentWalkActive) {
+        startLatentWalk();
+    } else {
+        cancelAnimationFrame(latentWalkAnimationFrame);
+    }
+}
+
+function startLatentWalk() {
+    // Generate a random latent vector as the target
+    const targetLatentVector = Array.from({ length: latentDim }, () => Math.random() * 3 - 1.5);
+
+    // Smoothly transition sliders to match the target latent vector
+    smoothTransitionSliders(targetLatentVector, () => {
+        if (latentWalkActive) startLatentWalk(); // Loop while latent walk is active
+    });
+}
+
+function smoothTransitionSliders(targetLatentVector, callback) {
+    const sliders = document.querySelectorAll('.slider');
+    const transitionDuration = 2000; // duration in ms for each transition
+    const startTime = performance.now();
+    const startValues = Array.from(sliders, slider => parseFloat(slider.value));
+
+    function animateTransition(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / transitionDuration, 1);
+
+        sliders.forEach((slider, index) => {
+            const start = startValues[index];
+            const target = targetLatentVector[index];
+            slider.value = start + (target - start) * progress;
+        });
+
+        generateImage(); // Update generated image with new slider values
+
+        if (progress < 1) {
+            latentWalkAnimationFrame = requestAnimationFrame(animateTransition);
+        } else {
+            callback(); // Call callback to start another latent vector transition
+        }
+    }
+
+    latentWalkAnimationFrame = requestAnimationFrame(animateTransition);
+}
+
+            // Randomize sliders
+            function randomizeSliders() {
+                const sliders = document.querySelectorAll('.slider');
+                sliders.forEach(slider => {
+                    slider.value = (Math.random() * 3 - 1.5).toFixed(1);  // Range -3 to 3
+                });
+                generateImage();
+            }
+
+            // Train the model indefinitely
+            // Modified trainModelIndefinitely function with loop-based training blocks to avoid recursion
+            let shouldStopTraining = false; // New flag to control interruption
+
+            // Randomly flip an image horizontally
+            function randomFlipHorizontal(imageTensor) {
+                // Decide randomly whether to flip
+                const shouldFlip = Math.random() > 0.5;
+                if (!shouldFlip) {
+                    return imageTensor;
+                }
+
+                // Check the rank of the tensor
+                if (imageTensor.rank === 3) {
+                    // Expand dimensions to add batch size
+                    const expanded = imageTensor.expandDims(0); // Shape: [1, height, width, channels]
+                    const flipped = tf.image.flipLeftRight(expanded);
+                    // Squeeze back to rank 3
+                    return flipped.squeeze(); // Shape: [height, width, channels]
+                } else if (imageTensor.rank === 4) {
+                    // Already has batch size, no need to expand
+                    return tf.image.flipLeftRight(imageTensor);
+                } else {
+                    throw new Error(`flipLeftRight expects rank 3 or 4 tensors, but got rank ${imageTensor.rank}.`);
+                }
+            }
+
+            // Randomly rotate an image by an angle (in radians)
+            function randomRotate(imageTensor, maxAngle = Math.PI / 4) {
+                const angle = (Math.random() * 2 - 1) * maxAngle; // Random angle between -maxAngle and +maxAngle
+                return tf.tidy(() => {
+                    // Expand dimensions to make it rank 4
+                    const expanded = imageTensor.expandDims(0);
+                    // Apply rotateWithOffset
+                    const rotated = tf.image.rotateWithOffset(expanded, angle, 0.5, 0.5);
+                    // Squeeze back to rank 3
+                    return rotated.squeeze();
+                });
+            }
+
+            // Randomly offset (translate) an image within a given range
+            function randomOffset(imageTensor, maxOffsetX = 10, maxOffsetY = 10) {
+                const offsetX = Math.floor((Math.random() * 2 - 1) * maxOffsetX);
+                const offsetY = Math.floor((Math.random() * 2 - 1) * maxOffsetY);
+                return tf.tidy(() => {
+                    const expanded = imageTensor.expandDims(0); // Expand dimensions to rank 4
+                    const cropped = tf.image.cropAndResize(
+                        expanded,
+                        [[offsetY / imageTensor.shape[0], offsetX / imageTensor.shape[1], 1, 1]],
+                        [0],
+                        [imageTensor.shape[0], imageTensor.shape[1]]
+                    );
+                    return cropped.squeeze(); // Squeeze back to rank 3
+                });
+            }
+
+            // Apply multiple transformations together
+            function applyRandomTransformations(imageTensor) {
+                return tf.tidy(() => {
+                    let transformedImage = imageTensor;
+                    // transformedImage = randomFlipHorizontal(transformedImage);
+                    // transformedImage = randomRotate(transformedImage);
+                    // transformedImage = randomOffset(transformedImage);
+                    return transformedImage;
+                });
+            }
+
+            // ======= Dynamic Images per Minibatch Slider Functionality =======
+
+            // Initialize batch size based on the slider's initial value
+            let batchSize = parseInt(document.getElementById('batchSize').value);
+
+            // Reference to batch size slider and display
+            const batchSizeSlider = document.getElementById('batchSize');
+            const batchSizeValueDisplay = document.getElementById('batchSizeValue');
+
+            // Function to update batch size display
+            function updateBatchSizeDisplay(value) {
+                batchSizeValueDisplay.innerText = value;
+            }
+
+            // Event listener for batch size slider
+            batchSizeSlider.addEventListener('input', (event) => {
+                batchSize = parseInt(event.target.value);
+                updateBatchSizeDisplay(batchSize);
+            });
+
+            // Function to update batch size slider max based on subset size
+            function updateBatchSizeSliderMax() {
+                const subsetPercentage = parseInt(document.getElementById('subsetPercentage').value);
+                const totalImages = capturedErrors.length;
+                const subsetCount = Math.max(1, Math.floor((subsetPercentage / 100) * totalImages));
+
+                // Calculate new max for batch size slider
+                const newMax = Math.min(100000); // Assuming 150 is the original max
+                batchSizeSlider.max = newMax;
+
+                // Adjust current batch size if it exceeds the new max
+                if (batchSize > newMax) {
+                    batchSize = newMax;
+                    batchSizeSlider.value = newMax;
+                    updateBatchSizeDisplay(batchSize);
+                }
+            }
+
+            // Modify the subset percentage slider event to also update the batch size slider max
+            const subsetPercentageSlider = document.getElementById('subsetPercentage');
+            subsetPercentageSlider.addEventListener('input', () => {
+                updateBatchSizeSliderMax();
+            });
+
+            // Initial setup: set the batch size slider max based on initial subset percentage
+            updateBatchSizeSliderMax();
+    // Initialize variables for epoch count
+    let epochCount = parseInt(document.getElementById('epochCount').value);
+
+    // Reference to epoch count slider and display
+    const epochCountSlider = document.getElementById('epochCount');
+    const epochCountValueDisplay = document.getElementById('epochCountValue');
+
+    // Function to update the displayed epoch count
+    function updateEpochCountDisplay(value) {
+        epochCountValueDisplay.innerText = value;
+    }
+
+    // Event listener for epoch count slider
+    epochCountSlider.addEventListener('input', (event) => {
+        epochCount = parseInt(event.target.value);
+        updateEpochCountDisplay(epochCount);
+    });
+
+    // Modify the trainModelIndefinitely function to use the dynamic epoch count
+    // Modify the trainModelIndefinitely function to skip error calculation in random mode
+    async function trainModelIndefinitely() {
+        if (capturedImages.length === 0) {
+            alert('No images captured! Please capture or upload images before training.');
+            return;
+        }
+
+        if (!autoencoder) {
+            alert('Please build or load a model before training.');
+            return;
+        }
+
+        if (isTraining) {
+            alert('Training is already in progress.');
+            return;
+        }
+
+        isTraining = true;
+        shouldStopTraining = false;
+
+        document.getElementById('trainButton').disabled = true;
+        document.getElementById('trainButton').innerText = 'Training...';
+        document.getElementById('interruptTrainButton').style.display = 'inline-block';
+
+        while (isTraining && !shouldStopTraining) {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                videoElement.srcObject = stream;
+                // Only compute errors if the mode is not random
+                const subsetMode = document.getElementById('subsetMode').value;
+                if (subsetMode !== 'random') {
+                    await computeAndDisplayErrors();
+                }
+
+                const subsetPercentage = parseInt(document.getElementById('subsetPercentage').value);
+                const totalImages = capturedErrors.length;
+                const subsetCount = Math.max(1, Math.floor((subsetPercentage / 100) * totalImages));
+
+                let selectedIndices;
+                if (subsetMode === 'harder') {
+                    selectedIndices = capturedErrors
+                        .map((error, index) => ({ error, index }))
+                        .sort((a, b) => b.error - a.error)
+                        .slice(0, subsetCount)
+                        .map(item => item.index);
+                } else if (subsetMode === 'easier') {
+                    selectedIndices = capturedErrors
+                        .map((error, index) => ({ error, index }))
+                        .sort((a, b) => a.error - b.error)
+                        .slice(0, subsetCount)
+                        .map(item => item.index);
+                } else {
+                    // Random mode: select random indices
+                    selectedIndices = getRandomSubset(capturedErrors.length, subsetCount);
+                }
+
+                // Data Preparation: Apply transformations and stack tensors
+                const augmentedImages = selectedIndices.map(index => applyRandomTransformations(capturedImages[index]));
+                const imageTensors = tf.stack(augmentedImages); // Updated to use augmented images
+
+                // Train the model with the dynamic epoch count
+                await autoencoder.fit(imageTensors, imageTensors, {
+                    epochs: epochCount,
+                    batchSize: batchSize,
+                    callbacks: {
+                        onBatchEnd: async (batch, logs) => {
+                            if (shouldStopTraining) {
+                                isTraining = false;
+                                return;
+                            }
+                        },
+                        onEpochEnd: async (epoch, logs) => {
+                            console.log(`Epoch: ${epoch + 1}, Loss: ${logs.loss}`);
+                        },
+                        onTrainEnd: () => {
+                            console.log('Training completed.');
+                        }
+                    }
+                });
+
+                // Dispose of imageTensors after training to free memory
+                imageTensors.dispose();
+
             } catch (err) {
-                alert('Error accessing webcam: ' + err);
+                console.error('Training interrupted or failed:', err);
+                isTraining = false;
             }
+
+            // Yield to the browser to handle other tasks
+            await tf.nextFrame();
         }
 
-        // Capture image from webcam
-        function captureImage() {
-            const canvas = document.createElement('canvas');
-            canvas.width = resolution.width;
-            canvas.height = resolution.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(videoElement, 0, 0, resolution.width, resolution.height);
-            const imageTensor = tf.tidy(() => tf.browser.fromPixels(canvas).toFloat().div(255));
-            capturedImages.push(imageTensor);
-            capturedErrors.push(null); // Initialize with null error
+        // Reset training flags and UI elements
+        isTraining = false;
+        document.getElementById('trainButton').disabled = false;
+        document.getElementById('trainButton').innerText = 'Train';
+        document.getElementById('interruptTrainButton').style.display = 'none';
+    }
 
-            // Display captured image with error text
-            const displayContainer = document.createElement('div');
-            displayContainer.className = 'image-container';
 
-            const displayCanvas = document.createElement('canvas');
-            displayCanvas.width = 100; // Increased size
-            displayCanvas.height = 100; // Increased size
-            const displayCtx = displayCanvas.getContext('2d');
-            displayCtx.drawImage(canvas, 0, 0, 100, 100); // Adjusted size
-            displayContainer.appendChild(displayCanvas);
+            // Function to compute and display errors for each captured image
+            async function computeAndDisplayErrors() {
+                if (capturedImages.length === 0) return; // Early exit if no images
 
-            const errorText = document.createElement('p');
-            errorText.className = 'error-text';
-            errorText.innerText = 'Error: N/A'; // Initial placeholder
-            displayContainer.appendChild(errorText);
+                const imageContainers = document.querySelectorAll('.image-container');
 
-            document.getElementById('capturedImages').appendChild(displayContainer);
-        }
+                // Stack all captured images into a single tensor
+                const imagesTensor = tf.stack(capturedImages); // Shape: [batch, height, width, channels]
 
-        // Function to get layers configuration from UI
-        function getLayersConfig(sectionId) {
-            const layersContainer = document.getElementById(sectionId);
-            const layerDivs = layersContainer.getElementsByClassName('layer');
-            const layersConfig = [];
-            for (let layerDiv of layerDivs) {
-                const units = parseInt(layerDiv.querySelector('.units-input').value);
-                const activation = layerDiv.querySelector('.activation-select').value;
-                layersConfig.push({ units, activation });
+                // Get predictions for all images at once
+                const predictions = autoencoder.predict(imagesTensor); // Shape: [batch, height, width, channels]
+
+                // Compute squared differences
+                const squaredDiff = tf.square(predictions.sub(imagesTensor)); // Shape: [batch, height, width, channels]
+
+                // Compute Mean Squared Error for each image
+                const mseTensor = tf.mean(squaredDiff, [1, 2, 3]); // Shape: [batch]
+
+                // Get the MSE values as an array
+                const mseArray = await mseTensor.array();
+
+                // Update capturedErrors and the UI
+                mseArray.forEach((mse, i) => {
+                    capturedErrors[i] = mse;
+                    imageContainers[i].querySelector('.error-text').innerText = `Error: ${mse.toFixed(4)}`;
+                });
+
+                // Dispose tensors to free memory
+                imagesTensor.dispose();
+                predictions.dispose();
+                squaredDiff.dispose();
+                mseTensor.dispose();
             }
-            return layersConfig;
-        }
 
-        // Function to mirror encoder layers for decoder
-        function mirrorDecoderLayers() {
-            const encoderLayers = getLayersConfig('encoderLayers');
-            const decoderLayersContainer = document.getElementById('decoderLayers');
-            decoderLayersContainer.innerHTML = ''; // Clear existing layers
-            // Reverse the encoder layers for decoder, excluding the last latent layer
-            for (let i = encoderLayers.length - 2; i >= 0; i--) {
-                const layerConfig = encoderLayers[i];
+            function setupImageClickEvents() {
+                const imageContainers = document.querySelectorAll('.image-container');
+
+                imageContainers.forEach((container) => {
+
+                    // Add a single click event listener to each image container
+                    container.addEventListener('click', handleImageClick);
+                });
+            }
+
+            // Separate function to handle the image click logic
+            async function handleImageClick(event) {
+                if (liveModeActive) {
+                    alert('Live Mode is active. Please turn it off to view image reconstruction.');
+                    return;
+                }
+
+                const container = event.currentTarget;
+                const imageIndex = parseInt(container.dataset.index);
+                if (isNaN(imageIndex) || imageIndex < 0 || imageIndex >= capturedImages.length) {
+                    alert('Invalid image index.');
+                    return;
+                }
+
+                let imageTensor = capturedImages[imageIndex];
+
+                try {
+                    // Confirm the resolution of the image tensor
+                    const [height, width, channels] = imageTensor.shape;
+                    console.log(`Captured Image Shape: ${imageTensor.shape}`);
+
+                    // Ensure the image tensor has the correct resolution
+                    if (height !== resolution.height || width !== resolution.width) {
+                        console.warn(
+                            `Image resolution (${width}x${height}) does not match model's expected resolution (${resolution.width}x${resolution.height}). Resizing image...`
+                        );
+                        imageTensor = tf.image.resizeBilinear(imageTensor, [resolution.height, resolution.width]);
+                    }
+
+                    // Add a batch dimension to the image tensor for encoding
+                    const imageTensorBatch = imageTensor.expandDims(0);
+                    console.log(`Image Tensor Batch Shape for Encoding: ${imageTensorBatch.shape}`);
+
+                    // Step 1: Encode the image
+                    const latentVector = encoder.predict(imageTensorBatch);
+
+                    // Log the latent vector values to verify correctness
+                    const latentValues = latentVector.arraySync()[0];
+                    console.log("Latent Vector (from encoder):", latentValues);
+
+                    // Step 2: Pass the latent vector through the decoder to reconstruct the image
+                    const generatedTensor = decoder.predict(latentVector);
+
+                    // Display the reconstructed image on the canvas
+                    await tf.browser.toPixels(generatedTensor.squeeze(), generatedCanvas);
+
+                    // Update sliders with latent vector values to reflect the reconstruction
+                    setSliders(latentValues);
+
+                    // Dispose of tensors to free up memory
+                    imageTensorBatch.dispose();
+                    latentVector.dispose();
+                    generatedTensor.dispose();
+
+                } catch (error) {
+                    console.error("Error during encoding/decoding:", error);
+                } finally {
+                    // Ensure that the base imageTensor is disposed if resized
+                    if (imageTensor !== capturedImages[imageIndex]) {
+                        imageTensor.dispose();
+                    }
+                }
+            }
+
+            // Reset training
+            function resetTraining() {
+                if (autoencoder) {
+                    autoencoder.dispose();
+                    encoder.dispose();
+                    decoder.dispose();
+                    autoencoder = null;
+                    encoder = null;
+                    decoder = null;
+                    alert('Model has been reset. You can build a new model with the desired layer structure.');
+                } else {
+                    alert('No trained model to reset.');
+                }
+            }
+
+            // Initialize the application
+            async function init() {
+                await initWebcam();
+                createSliders();
+                mirrorDecoderLayers(); // Ensure decoder is mirrored initially
+                setupDragAndDrop(); // Initialize drag-and-drop functionality
+                setupComparatorEvents(); // Initialize comparator event listeners
+                setupLayerControls(); // Initialize layer controls
+                setupSubsetControls(); // Initialize subset percentage and mode controls
+            }
+
+            // Create sliders for latent space with fixed min and max values
+            function createSliders() {
+                const sliderContainer = document.getElementById('sliderContainer');
+                sliderContainer.innerHTML = '';
+
+                const minValue = -1.5;
+                const maxValue = 1.5;
+
+                for (let i = 0; i < latentDim; i++) {
+                    const sliderDiv = document.createElement('div');
+                    sliderDiv.className = 'slider-container';
+                    const label = document.createElement('label');
+                    label.innerText = `Latent Dim ${i + 1}`;
+                    sliderDiv.appendChild(label);
+
+                    const slider = document.createElement('input');
+                    slider.type = 'range';
+                    slider.min = minValue;
+                    slider.max = maxValue;
+                    slider.step = 0.1;
+                    slider.value = 0;
+                    slider.className = 'slider';
+                    slider.addEventListener('input', generateImage);
+                    sliderDiv.appendChild(slider);
+
+                    sliderContainer.appendChild(sliderDiv);
+                }
+            }
+
+            // Create layer UI elements dynamically
+            function setupLayerControls() {
+                // Encoder: Add Layer
+                document.getElementById('addEncoderLayer').addEventListener('click', () => {
+                    const encoderLayers = document.getElementById('encoderLayers');
+                    const newLayer = createLayerElement(false);
+                    encoderLayers.appendChild(newLayer);
+                    mirrorDecoderLayers(); // Update decoder to mirror encoder
+                    // Update latentDim based on the new latent layer
+                    const encoderConfigs = getLayersConfig('encoderLayers');
+                    if (encoderConfigs.length > 0) {
+                        const lastLayer = encoderConfigs[encoderConfigs.length - 1];
+                        latentDim = lastLayer.units;
+                        createSliders();
+                    }
+                });
+
+                // Decoder: Add Layer (Disabled as decoder is mirrored automatically)
+                document.getElementById('addDecoderLayer').addEventListener('click', () => {
+                    alert('Decoder layers are mirrored automatically based on Encoder configuration.');
+                });
+
+                // Remove Layer Buttons
+                // Delegated event listener for dynamically added remove buttons
+                document.getElementById('encoderLayers').addEventListener('click', (event) => {
+                    if (event.target.classList.contains('remove-layer-button')) {
+                        event.target.parentElement.remove();
+                        mirrorDecoderLayers(); // Update decoder to mirror encoder
+                        // Update latentDim based on the new latent layer
+                        const encoderConfigs = getLayersConfig('encoderLayers');
+                        if (encoderConfigs.length === 0) {
+                            latentDim = 15; // Reset to default
+                            createSliders();
+                        } else {
+                            const lastLayer = encoderConfigs[encoderConfigs.length - 1];
+                            latentDim = lastLayer.units;
+                            createSliders();
+                        }
+                    }
+                });
+            }
+
+            // Function to create a new layer UI element
+            function createLayerElement(isLatent = false) {
                 const layerDiv = document.createElement('div');
                 layerDiv.className = 'layer';
+                if (isLatent) {
+                    layerDiv.classList.add('latent-layer');
+                }
 
                 const unitsInput = document.createElement('input');
                 unitsInput.type = 'number';
                 unitsInput.min = '1';
-                unitsInput.placeholder = 'Units';
+                unitsInput.placeholder = isLatent ? 'Latent Units' : 'Units';
                 unitsInput.className = 'units-input';
-                unitsInput.value = layerConfig.units;
-                unitsInput.disabled = true; // Units are mirrored; user shouldn't modify decoder layers manually
+                unitsInput.value = isLatent ? '15' : '128';
                 layerDiv.appendChild(unitsInput);
 
                 const activationSelect = document.createElement('select');
@@ -452,577 +1389,651 @@
                     const option = document.createElement('option');
                     option.value = act;
                     option.text = act.charAt(0).toUpperCase() + act.slice(1);
-                    if (act === layerConfig.activation.toLowerCase()) {
-                        option.selected = true;
-                    }
                     activationSelect.appendChild(option);
                 });
-                activationSelect.disabled = true; // Activation is mirrored; user shouldn't modify decoder layers manually
                 layerDiv.appendChild(activationSelect);
 
-                // No remove button for decoder layers since they are mirrored
-                decoderLayersContainer.appendChild(layerDiv);
-            }
-        }
+                const removeButton = document.createElement('button');
+                removeButton.className = 'remove-layer-button';
+                removeButton.innerText = 'Remove';
+                layerDiv.appendChild(removeButton);
 
-        // Create VAE model based on UI configurations
-        function createModels() {
-            const encoderLayers = getLayersConfig('encoderLayers');
-            const decoderLayers = getLayersConfig('decoderLayers'); // Will be mirrored automatically
-
-            // The last encoder layer is treated as the latent layer
-            const latentLayerConfig = encoderLayers[encoderLayers.length - 1];
-            latentDim = latentLayerConfig.units;
-
-            // Dispose existing models if any
-            if (autoencoder) {
-                autoencoder.dispose();
-                encoder.dispose();
-                decoder.dispose();
+                return layerDiv;
             }
 
-            const inputLayer = tf.input({ shape: [resolution.width, resolution.height, 3] });
+            // Example of generating a latent vector based on sliders
+            function generateLatentVector() {
+                const sliders = document.querySelectorAll('.slider');
+                return Array.from(sliders, slider => parseFloat(slider.value));
+            }
 
-            // Encoder
-            let x = tf.layers.flatten().apply(inputLayer);
-            for (let i = 0; i < encoderLayers.length - 1; i++) {
-                const layerConfig = encoderLayers[i];
-                let denseLayer = tf.layers.dense({ units: layerConfig.units });
-                x = denseLayer.apply(x);
-                if (layerConfig.activation.toLowerCase() === 'leakyrelu') {
-                    x = tf.layers.leakyReLU().apply(x);
-                } else if (layerConfig.activation.toLowerCase() === 'elu') {
-                    x = tf.layers.elu().apply(x);
-                } else {
-                    const activationLayer = tf.layers.activation({ activation: layerConfig.activation });
-                    x = activationLayer.apply(x);
+            // Ensure latent vectors and tensors used for training or inference use the updated latentDim
+            function generateImage() {
+                if (!decoder) {
+                    alert('Please build and train the model first.');
+                    return;
                 }
-            }
-            // Latent Layer
-            const meanLayer = tf.layers.dense({ units: latentDim, name: 'mean' }).apply(x);
-            const logvarLayer = tf.layers.dense({ units: latentDim, name: 'logvar' }).apply(x);
+                const latentVector = generateLatentVector();
 
-            // Sampling layer
-            const sampling = new SamplingLayer(latentDim).apply([meanLayer, logvarLayer]);
-
-            encoder = tf.model({ inputs: inputLayer, outputs: [meanLayer, logvarLayer] });
-
-            // Decoder
-            const decoderInput = tf.input({ shape: [latentDim] });
-            let y = decoderInput;
-            decoderLayers.forEach(layerConfig => {
-                let denseLayer = tf.layers.dense({ units: layerConfig.units });
-                y = denseLayer.apply(y);
-                if (layerConfig.activation.toLowerCase() === 'leakyrelu') {
-                    y = tf.layers.leakyReLU().apply(y);
-                } else if (layerConfig.activation.toLowerCase() === 'elu') {
-                    y = tf.layers.elu().apply(y);
-                } else {
-                    const activationLayer = tf.layers.activation({ activation: layerConfig.activation });
-                    y = activationLayer.apply(y);
-                }
-            });
-            const outputLayer = tf.layers.dense({ units: resolution.width * resolution.height * 3, activation: 'sigmoid' }).apply(y);
-            const reshapedOutput = tf.layers.reshape({ targetShape: [resolution.width, resolution.height, 3] }).apply(outputLayer);
-            decoder = tf.model({ inputs: decoderInput, outputs: reshapedOutput });
-
-            // Autoencoder: Connect encoder to decoder via sampling
-            const autoencoderOutput = decoder.apply(sampling);
-
-            autoencoder = tf.model({ inputs: inputLayer, outputs: autoencoderOutput });
-
-            // Define the optimizer (you can choose a different optimizer if desired)
-            const optimizer = tf.train.adam(); // Using Adam optimizer
-
-            // Compile the autoencoder
-            autoencoder.compile({ optimizer: "adamax", loss: 'meanSquaredError' });
-
-            alert('Model has been built successfully!');
-        }
-
-        // Randomize sliders
-        function randomizeSliders() {
-            const sliders = document.querySelectorAll('.slider');
-            sliders.forEach(slider => {
-                slider.value = (Math.random() * 6 - 3).toFixed(1);  // Range -3 to 3
-            });
-            generateImage();
-        }
-
-        // Train the model indefinitely
-        async function trainModelIndefinitely() {
-            if (capturedImages.length === 0) {
-                alert('No images captured! Please capture images before training.');
-                return;
-            }
-
-            if (!autoencoder) {
-                alert('Please build the model before training.');
-                return;
-            }
-
-            if (isTraining) {
-                alert('Training is already in progress.');
-                return;
-            }
-
-            isTraining = true;
-            document.getElementById('trainButton').disabled = true;
-            document.getElementById('trainButton').innerText = 'Training...';
-            document.getElementById('interruptTrainButton').style.display = 'inline-block';
-
-            try {
-                // Prepare dataset
-                const imageTensors = tf.stack(capturedImages);
-                console.log('Captured images:', imageTensors.shape);
-
-                while (isTraining) {
-                    // Determine if continuous training based on any additional logic if needed
-                    // For simplicity, training one epoch at a time indefinitely
-                    await autoencoder.fit(imageTensors, imageTensors, {
-                        epochs: 300,
-                        batchSize: Math.min(2000, imageTensors.shape[0]),
-                        callbacks: {
-                            onEpochEnd: async (epoch, logs) => {
-                                console.log(`Epoch: ${epoch + 1}, Loss: ${logs.loss}`);
-                                // Optionally update UI with training progress here
-                            }
-                        }
-                    });
-
-                    // After each epoch, compute and display errors
-                    await computeAndDisplayErrors();
-                }
-            } catch (err) {
-                console.error('Training interrupted or failed:', err);
-                alert('Training interrupted or failed. Check console for details.');
-            } finally {
-                isTraining = false;
-                document.getElementById('trainButton').disabled = false;
-                document.getElementById('trainButton').innerText = 'Train';
-                document.getElementById('interruptTrainButton').style.display = 'none';
-                console.log('Training has been stopped.');
-            }
-        }
-
-        // Function to compute and display errors for each captured image
-        async function computeAndDisplayErrors() {
-            const imageContainers = document.querySelectorAll('.image-container');
-            for (let i = 0; i < capturedImages.length; i++) {
-                const imageTensor = capturedImages[i].expandDims(0); // Add batch dimension
-                const prediction = autoencoder.predict(imageTensor);
-                const mse = tf.tidy(() => {
-                    const squaredDiff = tf.square(prediction.sub(imageTensor));
-                    const mseValue = tf.mean(squaredDiff).dataSync()[0];
-                    return mseValue;
+                tf.tidy(() => {
+                    const latentTensor = tf.tensor2d([latentVector], [1, latentDim]); // Ensure tensor shape uses latentDim
+                    const generatedTensor = decoder.predict(latentTensor);
+                    tf.browser.toPixels(generatedTensor.squeeze(), generatedCanvas);
                 });
-                capturedErrors[i] = mse;
-                imageContainers[i].querySelector('.error-text').innerText = `Error: ${mse.toFixed(4)}`;
-                imageTensor.dispose();
-                prediction.dispose();
             }
-        }
 
-        // Reset training
-        function resetTraining() {
-            if (autoencoder) {
-                autoencoder.dispose();
-                encoder.dispose();
-                decoder.dispose();
-                autoencoder = null;
-                encoder = null;
-                decoder = null;
-                alert('Model has been reset. You can build a new model with the desired layer structure.');
-            } else {
-                alert('No trained model to reset.');
-            }
-        }
-
-        // Initialize the application
-        async function init() {
-            await initWebcam();
-            createSliders();
-            mirrorDecoderLayers(); // Ensure decoder is mirrored initially
-        }
-
-        // Create sliders for latent space
-        function createSliders() {
-            const sliderContainer = document.getElementById('sliderContainer');
-            sliderContainer.innerHTML = '';
-            for (let i = 0; i < latentDim; i++) {
-                const sliderDiv = document.createElement('div');
-                sliderDiv.className = 'slider-container';
-                const label = document.createElement('label');
-                label.innerText = `Latent Dim ${i + 1}`;
-                sliderDiv.appendChild(label);
-
-                const slider = document.createElement('input');
-                slider.type = 'range';
-                slider.min = -100;
-                slider.max = 100;
-                slider.step = 0.1;
-                slider.value = 0;
-                slider.className = 'slider';
-                slider.addEventListener('input', generateImage);
-                sliderDiv.appendChild(slider);
-
-                sliderContainer.appendChild(sliderDiv);
-            }
-        }
-
-        // Create layer UI elements dynamically
-        function setupLayerControls() {
-            // Encoder: Add Layer
-            document.getElementById('addEncoderLayer').addEventListener('click', () => {
-                const encoderLayers = document.getElementById('encoderLayers');
-                const newLayer = createLayerElement(false);
-                encoderLayers.appendChild(newLayer);
-                mirrorDecoderLayers(); // Update decoder to mirror encoder
-                // Update latentDim based on the new latent layer
-                const encoderConfigs = getLayersConfig('encoderLayers');
-                if (encoderConfigs.length > 0) {
-                    const lastLayer = encoderConfigs[encoderConfigs.length - 1];
-                    latentDim = lastLayer.units;
-                    createSliders();
-                }
-            });
-
-            // Decoder: Add Layer (Disabled as decoder is mirrored automatically)
-            document.getElementById('addDecoderLayer').addEventListener('click', () => {
-                alert('Decoder layers are mirrored automatically based on Encoder configuration.');
-            });
-
-            // Remove Layer Buttons
-            // Delegated event listener for dynamically added remove buttons
-            document.getElementById('encoderLayers').addEventListener('click', (event) => {
-                if (event.target.classList.contains('remove-layer-button')) {
-                    event.target.parentElement.remove();
-                    mirrorDecoderLayers(); // Update decoder to mirror encoder
-                    // Update latentDim based on the new latent layer
-                    const encoderConfigs = getLayersConfig('encoderLayers');
-                    if (encoderConfigs.length === 0) {
-                        latentDim = 15; // Reset to default
-                        createSliders();
-                    } else {
-                        const lastLayer = encoderConfigs[encoderConfigs.length - 1];
-                        latentDim = lastLayer.units;
-                        createSliders();
+            // Function to set sliders based on latent vector (for Live Mode or Comparison)
+            function setSliders(latentVectorArray) {
+                const sliders = document.querySelectorAll('.slider');
+                sliders.forEach((slider, index) => {
+                    if (index < latentVectorArray.length) {
+                        slider.value = latentVectorArray[index];
                     }
+                });
+                generateImage();
+            }
+
+            // Capture button event
+            document.getElementById('captureButton').addEventListener('click', captureImage);
+
+            // Train button event - modified to start indefinite training
+            document.getElementById('trainButton').addEventListener('click', () => {
+                trainModelIndefinitely();
+            });
+
+            // Interrupt Training button event - new functionality
+            document.getElementById('interruptTrainButton').addEventListener('click', () => {
+                shouldStopTraining = true; // Set flag to stop training
+                console.log('Interrupt signal sent.');
+            });
+
+
+            // Continue Train button event
+            document.getElementById('continueTrainButton').addEventListener('click', () => {
+                trainModelIndefinitely();
+            });
+
+            // Reset Training button event
+            document.getElementById('resetTrainingButton').addEventListener('click', resetTraining);
+
+            // Randomize button event
+            document.getElementById('randomizeButton').addEventListener('click', randomizeSliders);
+
+            // Build Model button event
+            document.getElementById('buildModelButton').addEventListener('click', () => {
+                createModels();
+                createSliders(); // Update sliders based on new latentDim
+            });
+
+            // Update Resolution button event
+            document.getElementById('updateResolutionButton').addEventListener('click', () => {
+                const newWidth = parseInt(document.getElementById('inputWidth').value);
+                const newHeight = parseInt(document.getElementById('inputHeight').value);
+
+                if (isNaN(newWidth) || isNaN(newHeight) || newWidth < 16 || newHeight < 16 || newWidth > 512 || newHeight > 512) {
+                    alert('Please enter valid resolutions (16x16 to 512x512).');
+                    return;
+                }
+
+                resolution.width = newWidth;
+                resolution.height = newHeight;
+
+                // Update video and canvas sizes
+                videoElement.width = resolution.width;
+                videoElement.height = resolution.height;
+                generatedCanvas.width = resolution.width;
+                generatedCanvas.height = resolution.height;
+
+                // Clear captured images and errors
+                capturedImages.forEach(tensor => tensor.dispose());
+                capturedImages = [];
+                capturedErrors = [];
+                document.getElementById('capturedImages').innerHTML = '';
+
+                // Reset sliders
+                createSliders();
+
+                // If a model exists, reset it as resolution has changed
+                if (autoencoder) {
+                    resetTraining();
+                }
+
+                alert(`Resolution updated to ${resolution.width}x${resolution.height}. Please build and train the model again.`);
+            });
+
+            // Live mode toggle
+            document.getElementById('liveModeButton').addEventListener('click', () => {
+                liveModeActive = !liveModeActive;
+                if (liveModeActive) {
+                    document.getElementById('liveModeButton').innerText = 'Exit Live Mode';
+                    if (!autoencoder) {
+                        alert('Please build and train the model before entering Live Mode.');
+                        liveModeActive = false;
+                        document.getElementById('liveModeButton').innerText = 'Toggle Live Mode';
+                        return;
+                    }
+                    enterLiveMode();
+                } else {
+                    document.getElementById('liveModeButton').innerText = 'Toggle Live Mode';
+                    cancelAnimationFrame(liveModeAnimationFrame);
                 }
             });
-        }
 
-        // Function to create a new layer UI element
-        function createLayerElement(isLatent = false) {
-            const layerDiv = document.createElement('div');
-            layerDiv.className = 'layer';
-            if (isLatent) {
-                layerDiv.classList.add('latent-layer');
-            }
-
-            const unitsInput = document.createElement('input');
-            unitsInput.type = 'number';
-            unitsInput.min = '1';
-            unitsInput.placeholder = isLatent ? 'Latent Units' : 'Units';
-            unitsInput.className = 'units-input';
-            unitsInput.value = isLatent ? '15' : '128';
-            layerDiv.appendChild(unitsInput);
-
-            const activationSelect = document.createElement('select');
-            activationSelect.className = 'activation-select';
-            const activations = ['relu', 'tanh', 'sigmoid', 'leakyrelu', 'elu'];
-            activations.forEach(act => {
-                const option = document.createElement('option');
-                option.value = act;
-                option.text = act.charAt(0).toUpperCase() + act.slice(1);
-                activationSelect.appendChild(option);
-            });
-            layerDiv.appendChild(activationSelect);
-
-            const removeButton = document.createElement('button');
-            removeButton.className = 'remove-layer-button';
-            removeButton.innerText = 'Remove';
-            layerDiv.appendChild(removeButton);
-
-            return layerDiv;
-        }
-
-        // Generate image from latent space
-        async function generateImage() {
-            if (!decoder) {
-                alert('Please build and train the model first.');
-                return;
-            }
-            const sliders = document.querySelectorAll('.slider');
-            const latentVector = Array.from(sliders, slider => parseFloat(slider.value));
-
-            await tf.tidy(() => {
-                const latentTensor = tf.tensor2d([latentVector]);
-                const generatedTensor = decoder.predict(latentTensor);
-                tf.browser.toPixels(generatedTensor.squeeze(), generatedCanvas);
-            });
-        }
-
-        // Function to set sliders based on latent vector (for Live Mode)
-        function setSliders(latentVectorArray) {
-            const sliders = document.querySelectorAll('.slider');
-            sliders.forEach((slider, index) => {
-                if (index < latentVectorArray.length) {
-                    slider.value = latentVectorArray[index];
-                }
-            });
-        }
-
-        // Capture button event
-        document.getElementById('captureButton').addEventListener('click', captureImage);
-
-        // Train button event - modified to start indefinite training
-        document.getElementById('trainButton').addEventListener('click', () => {
-            trainModelIndefinitely();
-        });
-
-        // Interrupt Training button event - new functionality
-        document.getElementById('interruptTrainButton').addEventListener('click', () => {
-            if (isTraining) {
-                isTraining = false;
-                console.log('Interrupting training...');
-            }
-        });
-
-        // Continue Train button event
-        document.getElementById('continueTrainButton').addEventListener('click', () => {
-            trainModel(true);
-        });
-
-        // Reset Training button event
-        document.getElementById('resetTrainingButton').addEventListener('click', resetTraining);
-
-        // Randomize button event
-        document.getElementById('randomizeButton').addEventListener('click', randomizeSliders);
-
-        // Build Model button event
-        document.getElementById('buildModelButton').addEventListener('click', () => {
-            createModels();
-            createSliders(); // Update sliders based on new latentDim
-        });
-
-        // Update Resolution button event
-        document.getElementById('updateResolutionButton').addEventListener('click', () => {
-            const newWidth = parseInt(document.getElementById('inputWidth').value);
-            const newHeight = parseInt(document.getElementById('inputHeight').value);
-
-            if (isNaN(newWidth) || isNaN(newHeight) ||
-                
-                newWidth > 512 || newHeight > 512) {
-                alert('Please enter valid resolutions (16x16 to 512x512).');
-                return;
-            }
-
-            resolution.width = newWidth;
-            resolution.height = newHeight;
-
-            // Update video and canvas sizes
-            videoElement.width = resolution.width;
-            videoElement.height = resolution.height;
-            generatedCanvas.width = resolution.width;
-            generatedCanvas.height = resolution.height;
-
-            // Clear captured images and errors
-            capturedImages.forEach(tensor => tensor.dispose());
-            capturedImages = [];
-            capturedErrors = [];
-            document.getElementById('capturedImages').innerHTML = '';
-
-            // Reset sliders
-            createSliders();
-
-            // If a model exists, reset it as resolution has changed
-            if (autoencoder) {
-                resetTraining();
-            }
-
-            alert(`Resolution updated to ${resolution.width}x${resolution.height}. Please build and train the model again.`);
-        });
-
-        // Live mode toggle
-        document.getElementById('liveModeButton').addEventListener('click', () => {
-            liveModeActive = !liveModeActive;
-            if (liveModeActive) {
-                document.getElementById('liveModeButton').innerText = 'Exit Live Mode';
-                if (!autoencoder) {
-                    alert('Please build and train the model before entering Live Mode.');
+            // Function to perform live inference
+            async function enterLiveMode() {
+                if (!encoder || !decoder) {
+                    alert('Model is not properly initialized.');
                     liveModeActive = false;
                     document.getElementById('liveModeButton').innerText = 'Toggle Live Mode';
                     return;
                 }
-                enterLiveMode();
-            } else {
-                document.getElementById('liveModeButton').innerText = 'Toggle Live Mode';
-                cancelAnimationFrame(liveModeAnimationFrame);
-            }
-        });
 
-        // Function to perform live inference
-        async function enterLiveMode() {
-            if (!encoder || !decoder) {
-                alert('Model is not properly initialized.');
-                liveModeActive = false;
-                document.getElementById('liveModeButton').innerText = 'Toggle Live Mode';
+                async function inferenceLoop() {
+                    if (!liveModeActive) return;
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = resolution.width;
+                    canvas.height = resolution.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(videoElement, 0, 0, resolution.width, resolution.height);
+                    const imageTensor = tf.tidy(() => tf.browser.fromPixels(canvas).toFloat().div(255).expandDims(0));
+
+                    try {
+                        const latentVector = encoder.predict(imageTensor);
+
+                        const generatedTensor = decoder.predict(latentVector);
+
+                        // Display the generated image on the canvas
+                        await tf.browser.toPixels(generatedTensor.squeeze(), generatedCanvas);
+
+                        // Update sliders with latent vector
+                        const latentArray = latentVector.arraySync()[0];
+                        setSliders(latentArray);
+
+                        latentVector.dispose();
+                        generatedTensor.dispose();
+                    } catch (error) {
+                        console.error("Error during live inference:", error);
+                    } finally {
+                        imageTensor.dispose();
+                    }
+
+                    liveModeAnimationFrame = requestAnimationFrame(inferenceLoop);
+                }
+
+                inferenceLoop();
+            }
+
+            // Save Model button event
+            document.getElementById('saveModelButton').addEventListener('click', () => {
+                if (!autoencoder) {
+                    alert('No model available to save. Please build and train the model first.');
+                    return;
+                }
+                autoencoder.save('downloads://autoencoder-model').then(() => {
+                    alert('Model saved successfully!');
+                }).catch(err => {
+                    alert('Error saving model: ' + err);
+                });
+            });
+
+            // Load Model button event
+            document.getElementById('loadModelButton').addEventListener('click', () => {
+                document.getElementById('loadModelInput').click();
+            });
+            async function configureEncoderAndDecoder(autoencoder) {
+        try {
+            // Extract the encoder: from input1 to batch_normalization_BatchNormalization4
+            const encoderOutputLayer = autoencoder.getLayer('batch_normalization_BatchNormalization4').output;
+            encoder = tf.model({ inputs: autoencoder.input, outputs: encoderOutputLayer });
+
+            // Extract the decoder: model2 is a nested model within autoencoder
+            const decoderLayer = autoencoder.getLayer('model2');
+            decoder = decoderLayer; // model2 is already a tf.Model instance
+
+            // Compile the autoencoder after loading
+            autoencoder.compile({ optimizer: optimizer, loss: 'meanAbsoluteError' });
+
+            // Update latentDim based on encoder's output shape
+            latentDim = encoder.outputShape[1]; // Should be 15 as per your architecture
+
+            // Update sliders to match the latent dimension
+            createSliders();
+
+            console.log('Encoder and Decoder have been configured and the autoencoder has been compiled successfully.');
+            alert('Encoder and Decoder have been configured and the autoencoder has been compiled successfully!');
+        } catch (error) {
+            console.error("Error during encoder and decoder configuration:", error);
+            alert('Error configuring encoder and decoder: ' + error.message);
+        }
+    }
+
+
+
+
+            // Load Model input change event
+        // Load Model input change event
+    document.getElementById('loadModelInput').addEventListener('change', async (event) => {
+        const files = Array.from(event.target.files);
+
+        try {
+            const jsonFile = files.find(file => file.name.endsWith('.json'));
+            const binFile = files.find(file => file.name.endsWith('.bin'));
+
+            if (!jsonFile || !binFile) {
+                alert('Please select both the .json and .bin files for the model.');
                 return;
             }
 
-            async function inferenceLoop() {
-                if (!liveModeActive) return;
+            // Load the autoencoder model
+            autoencoder = await tf.loadLayersModel(tf.io.browserFiles([jsonFile, binFile]));
+            console.log('Autoencoder model loaded successfully:');
+            autoencoder.summary(); // Print model structure to console for verification
 
-                // Capture current frame
-                const canvas = document.createElement('canvas');
-                canvas.width = resolution.width;
-                canvas.height = resolution.height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(videoElement, 0, 0, resolution.width, resolution.height);
-                const imageTensor = tf.tidy(() => tf.browser.fromPixels(canvas).toFloat().div(255).expandDims(0));
+            // Configure encoder and decoder
+            await configureEncoderAndDecoder(autoencoder);
 
-                // Encode the image to latent space
-                const [mean, logvar] = encoder.predict(imageTensor);
-                const latentVector = tf.tidy(() => {
-                    const epsilon = tf.randomNormal([mean.shape[0], latentDim]);
-                    const std = tf.exp(logvar.mul(0.5));
-                    return mean.add(std.mul(epsilon));
+            alert('Model loaded and encoder-decoder configured successfully!');
+        } catch (err) {
+            console.error('Error during model loading:', err);
+            alert('Error loading model: ' + err.message);
+        }
+    });
+
+
+            // Initialize the application on page load
+            window.onload = () => {
+                init();
+            };
+
+            // ======= Subset Percentage and Mode Controls =======
+
+            function setupSubsetControls() {
+                const subsetPercentageSlider = document.getElementById('subsetPercentage');
+                const subsetPercentageValue = document.getElementById('subsetPercentageValue');
+                const subsetModeSelect = document.getElementById('subsetMode');
+
+                // Update the display value when the slider changes
+                subsetPercentageSlider.addEventListener('input', (event) => {
+                    subsetPercentageValue.innerText = `${event.target.value}%`;
                 });
 
-                // Decode the latent vector to generate image
-                const generatedTensor = decoder.predict(latentVector);
-
-                // Display the generated image
-                tf.browser.toPixels(generatedTensor.squeeze(), generatedCanvas);
-
-                // Update sliders with the latent vector
-                const latentArray = latentVector.arraySync()[0]; // Get the latent vector as an array
-                setSliders(latentArray);
-
-                // Clean up tensors
-                imageTensor.dispose();
-                mean.dispose();
-                logvar.dispose();
-                latentVector.dispose();
-                generatedTensor.dispose();
-
-                // Continue the loop
-                liveModeAnimationFrame = requestAnimationFrame(inferenceLoop);
+                // Initialize display
+                subsetPercentageValue.innerText = `${subsetPercentageSlider.value}%`;
             }
 
-            inferenceLoop();
-        }
+            // ======= Drag-and-Drop Functionality =======
 
-        // Save Model button event
-        document.getElementById('saveModelButton').addEventListener('click', () => {
-            if (!autoencoder) {
-                alert('No model available to save. Please build and train the model first.');
-                return;
-            }
-            autoencoder.save('downloads://vae-model').then(() => {
-                alert('Model saved successfully!');
-            }).catch(err => {
-                alert('Error saving model: ' + err);
-            });
-        });
+            function setupDragAndDrop() {
+                const dragDropArea = document.getElementById('dragDropArea');
 
-        // Load Model button event
-        document.getElementById('loadModelButton').addEventListener('click', () => {
-            document.getElementById('loadModelInput').click();
-        });
+                // Prevent default behaviors
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                    dragDropArea.addEventListener(eventName, preventDefaults, false);
+                    document.body.addEventListener(eventName, preventDefaults, false);
+                });
 
-        // Load Model input change event
-        document.getElementById('loadModelInput').addEventListener('change', async (event) => {
-            const files = Array.from(event.target.files);
+                // Highlight drag area when item is dragged over it
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    dragDropArea.addEventListener(eventName, () => dragDropArea.classList.add('dragover'), false);
+                });
 
-            if (files.length < 1) {
-                alert('Please select at least the model.json file.');
-                return;
+                ['dragleave', 'drop'].forEach(eventName => {
+                    dragDropArea.addEventListener(eventName, () => dragDropArea.classList.remove('dragover'), false);
+                });
+
+                // Handle dropped files
+                dragDropArea.addEventListener('drop', handleDrop, false);
             }
 
-            // Validate file names
-            const hasModelJson = files.some(file => file.name.endsWith('model.json'));
-            const hasWeightsBin = files.some(file => file.name.endsWith('.bin'));
-
-            if (!hasModelJson || !hasWeightsBin) {
-                alert('Please ensure you have selected both model.json and weights.bin files.');
-                return;
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
             }
 
-            // Sort files to ensure model.json comes first
-            files.sort((a, b) => {
-                if (a.name.endsWith('model.json')) return -1;
-                if (b.name.endsWith('model.json')) return 1;
-                return 0;
-            });
+            async function handleDrop(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
 
-            try {
-                // Ensure the SamplingLayer is registered
-                tf.serialization.registerClass(SamplingLayer);
+                const validImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/bmp'];
+                const imageFiles = Array.from(files).filter(file => validImageTypes.includes(file.type));
 
-                // Load the autoencoder model
-                autoencoder = await tf.loadLayersModel(tf.io.browserFiles(files));
-                alert('Model loaded successfully!');
-
-                // Find the SamplingLayer
-                const samplingLayer = autoencoder.layers.find(layer => layer.getClassName() === 'SamplingLayer');
-                if (!samplingLayer) {
-                    alert('Loaded model does not contain a SamplingLayer. Cannot extract encoder and decoder.');
+                if (imageFiles.length === 0) {
+                    alert('No valid image files found. Please drop images of type JPEG, PNG, GIF, or BMP.');
                     return;
                 }
 
-                // Update latentDim based on the loaded model
-                const outputShape = samplingLayer.output.shape; // e.g., [null, latentDim]
-                latentDim = outputShape[outputShape.length - 1]; // Get the last dimension
+                console.log(`Processing ${imageFiles.length} images...`);
 
-                // Ensure latentDim is a valid positive integer
-                if (typeof latentDim !== 'number' || isNaN(latentDim) || latentDim <= 0) {
-                    alert('Invalid latent dimension. Cannot proceed.');
+                for (let file of imageFiles) {
+                    try {
+                        const imageTensor = await loadImageAsTensor(file); // Resize before converting
+                        capturedImages.push(imageTensor);
+                        capturedErrors.push(null); // Initialize with null error
+
+                        // Display the image with error text and "+" button
+                        const displayContainer = document.createElement('div');
+                        displayContainer.className = 'image-container';
+                        displayContainer.dataset.index = capturedImages.length - 1; // Store index
+
+                        const displayCanvas = document.createElement('canvas');
+                        displayCanvas.width = 100;
+                        displayCanvas.height = 100;
+                        const displayCtx = displayCanvas.getContext('2d');
+
+                        // Draw the resized image onto the canvas
+                        const tempCanvas = document.createElement('canvas');
+                        tempCanvas.width = resolution.width;
+                        tempCanvas.height = resolution.height;
+                        const tempCtx = tempCanvas.getContext('2d');
+                        const img = await fileToImage(file);
+                        tempCtx.drawImage(img, 0, 0, resolution.width, resolution.height);
+                        displayCtx.drawImage(tempCanvas, 0, 0, 100, 100);
+                        displayContainer.appendChild(displayCanvas);
+
+                        const errorText = document.createElement('p');
+                        errorText.className = 'error-text';
+                        errorText.innerText = 'Error: N/A'; // Initial placeholder
+                        displayContainer.appendChild(errorText);
+
+                        // Add "+" button
+                        const addButton = document.createElement('button');
+                        addButton.className = 'add-button';
+                        addButton.innerText = '+';
+                        addButton.title = 'Add to Comparator';
+                        addButton.addEventListener('click', () => {
+                            addImageToComparator(capturedImages.length - 1);
+                        });
+                        displayContainer.appendChild(addButton);
+
+                        document.getElementById('capturedImages').appendChild(displayContainer);
+                    } catch (err) {
+                        console.error('Error processing file:', file.name, err);
+                        alert(`Error processing file: ${file.name}. Please ensure it's a valid image.`);
+                    }
+                }
+                setupImageClickEvents();
+                alert(`Successfully added ${imageFiles.length} images for training.`);
+            }
+
+            async function fileToImage(file) {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = (err) => reject(err);
+                    img.src = URL.createObjectURL(file);
+                });
+            }
+
+            // Function to load image as tensor with resizing before conversion
+            function loadImageAsTensor(file) {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        // Resize the image to match the current resolution
+                        const canvas = document.createElement('canvas');
+                        canvas.width = resolution.width;
+                        canvas.height = resolution.height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, resolution.width, resolution.height);
+
+                        const imageTensor = tf.tidy(() => tf.browser.fromPixels(canvas).toFloat().div(255));
+                        resolve(imageTensor);
+                    };
+                    img.onerror = (err) => {
+                        reject(err);
+                    };
+                    img.src = URL.createObjectURL(file);
+                });
+            }
+
+
+            /* ======= End of Drag-and-Drop Functionality ======= */
+
+            /* ======= Comparator Functionality ======= */
+
+            function setupComparatorEvents() {
+                // Add event listeners to comparator slots
+                const comparatorSlotsElements = document.querySelectorAll('.comparator-slot');
+                comparatorSlotsElements.forEach(slot => {
+                    slot.addEventListener('click', (e) => {
+                        // Prevent triggering when clicking on buttons
+                        if (e.target.tagName.toLowerCase() === 'button') return;
+
+                        const slotNumber = parseInt(slot.dataset.slot);
+                        if (comparatorSlots[slotNumber - 1] === null) {
+                            // Open image selector
+                            selectImageForComparator(slotNumber - 1);
+                        }
+                    });
+
+                    // Handle add button
+                    const addButton = slot.querySelector('.addComparatorImage');
+                    addButton.addEventListener('click', (e) => {
+                        e.stopPropagation(); // Prevent triggering the slot click
+                        selectImageForComparator(slot.dataset.slot - 1);
+                    });
+
+                    // Handle remove button
+                    const removeButton = slot.querySelector('.removeComparatorImage');
+                    removeButton.addEventListener('click', (e) => {
+                        e.stopPropagation(); // Prevent triggering the slot click
+                        removeImageFromComparator(slot.dataset.slot - 1);
+                    });
+                });
+
+                // Compare button event
+                document.getElementById('compareButton').addEventListener('click', compareImages);
+
+                // Add Current Difference button event
+                document.getElementById('addDifferenceButton').addEventListener('click', addCurrentDifference);
+
+                // Add event listeners to captured images for the "+" button
+                document.getElementById('capturedImages').addEventListener('click', (event) => {
+                    if (event.target.classList.contains('add-button')) {
+                        const container = event.target.parentElement;
+                        const imageIndex = parseInt(container.dataset.index);
+                        addImageToComparator(imageIndex);
+                    }
+                });
+            }
+
+            // Function to add image to comparator
+            function addImageToComparator(imageIndex) {
+                // Check if the image is already in any comparator slot
+                if (comparatorSlots.includes(imageIndex)) {
+                    alert('This image is already in the comparator.');
                     return;
                 }
 
-                console.log('Latent Dimension:', latentDim);
-
-                // Reconstruct the encoder
-                const meanLayer = autoencoder.getLayer('mean');
-                const logvarLayer = autoencoder.getLayer('logvar');
-                encoder = tf.model({ inputs: autoencoder.inputs, outputs: [meanLayer.output, logvarLayer.output] });
-
-                // Reconstruct the decoder
-                const samplingLayerIndex = autoencoder.layers.findIndex(layer => layer.getClassName() === 'SamplingLayer');
-                const decoderLayers = autoencoder.layers.slice(samplingLayerIndex + 1);
-
-                const decoderInput = tf.input({ shape: [latentDim] });
-                let x = decoderInput;
-                for (let layer of decoderLayers) {
-                    x = layer.apply(x);
+                // Find the first empty comparator slot
+                const emptySlot = comparatorSlots.findIndex(slot => slot === null);
+                if (emptySlot === -1) {
+                    alert('Both comparator slots are occupied. Please remove an image before adding a new one.');
+                    return;
                 }
-                decoder = tf.model({ inputs: decoderInput, outputs: x });
 
-                // Recreate sliders based on latentDim
-                createSliders();
-
-                // Update decoder layers in the UI
-                mirrorDecoderLayers();
-
-            } catch (err) {
-                console.error(err);
-                alert('Error loading model: ' + err);
+                // Assign the image to the empty slot
+                comparatorSlots[emptySlot] = imageIndex;
+                updateComparatorSlotUI(emptySlot);
             }
-        });
 
-        // Initialize the application on page load
-        window.onload = () => {
-            init();
-            setupLayerControls();
-        };
+            function updateComparatorSlotUI(slotIndex) {
+                const slotElement = document.getElementById(`comparatorSlot${slotIndex + 1}`);
+                slotElement.innerHTML = ''; // Clear existing content
 
-        // Update the trainingPercentageValue span when the slider changes
-        document.getElementById('trainingPercentage').addEventListener('input', (event) => {
-            document.getElementById('trainingPercentageValue').innerText = `${event.target.value}%`;
-        });
+                const imageIndex = comparatorSlots[slotIndex];
+                if (imageIndex !== null && imageIndex >= 0 && imageIndex < capturedImages.length) {
+                    // Display the image
+                    const imgElement = document.createElement('img');
+                    const imageTensor = capturedImages[imageIndex];
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 150;
+                    canvas.height = 150;
+                    tf.browser.toPixels(imageTensor, canvas).then(() => {
+                        imgElement.src = canvas.toDataURL();
+                    });
+                    slotElement.appendChild(imgElement);
 
-    </script>
-</body>
-</html>
+                    // Show add and remove buttons
+                    const buttonsDiv = document.createElement('div');
+                    buttonsDiv.className = 'comparator-buttons';
+                    buttonsDiv.style.display = 'flex';
+
+                    const addButton = document.createElement('button');
+                    addButton.className = 'addComparatorImage';
+                    addButton.innerText = '+';
+                    addButton.title = 'Replace Image';
+                    addButton.addEventListener('click', (e) => {
+                        e.stopPropagation(); // Prevent triggering the slot click
+                        selectImageForComparator(slotIndex);
+                    });
+
+                    const removeButton = document.createElement('button');
+                    removeButton.className = 'removeComparatorImage';
+                    removeButton.innerText = '-';
+                    removeButton.title = 'Remove Image';
+                    removeButton.addEventListener('click', (e) => {
+                        e.stopPropagation(); // Prevent triggering the slot click
+                        removeImageFromComparator(slotIndex);
+                    });
+
+                    buttonsDiv.appendChild(addButton);
+                    buttonsDiv.appendChild(removeButton);
+                    slotElement.appendChild(buttonsDiv);
+                } else {
+                    // Show add image prompt
+                    const addText = document.createElement('span');
+                    addText.innerText = '+ Add Image';
+                    slotElement.appendChild(addText);
+
+                    // Hide buttons
+                    const buttonsDiv = document.createElement('div');
+                    buttonsDiv.className = 'comparator-buttons';
+                    buttonsDiv.style.display = 'none';
+                    slotElement.appendChild(buttonsDiv);
+                }
+            }
+
+            function removeImageFromComparator(slotIndex) {
+                comparatorSlots[slotIndex] = null;
+                updateComparatorSlotUI(slotIndex);
+            }
+
+            async function compareImages() {
+                if (comparatorSlots[0] === null || comparatorSlots[1] === null) {
+                    alert('Please add two images to compare.');
+                    return;
+                }
+
+                const imageIndex1 = comparatorSlots[0];
+                const imageIndex2 = comparatorSlots[1];
+
+                const imageTensor1 = capturedImages[imageIndex1].expandDims(0);
+                const imageTensor2 = capturedImages[imageIndex2].expandDims(0);
+
+                // Get latent vectors for both images
+                const latentVector1 = encoder.predict(imageTensor1);
+                const latentVector2 = encoder.predict(imageTensor2);
+
+                // Compute comparison vector (latentVector2 - latentVector1)
+                const comparisonVector = tf.tidy(() => latentVector2.sub(latentVector1));
+
+                // Get comparison vector as array
+                const comparisonArray = await comparisonVector.array();
+
+                // Display the comparison vector
+                document.getElementById('comparisonVectorDisplay').innerText = `Comparison Vector: [${comparisonArray[0].map(v => v.toFixed(2)).join(', ')}]`;
+
+                // Save the comparison vector into the array
+                comparisonVectors.push(comparisonArray[0]);
+
+                // Show comparison controls if not already visible
+                if (comparisonVectors.length > 0) {
+                    document.getElementById('comparisonControls').style.display = 'flex';
+                }
+
+                // Cleanup tensors
+                imageTensor1.dispose();
+                imageTensor2.dispose();
+                latentVector1.dispose();
+                latentVector2.dispose();
+                comparisonVector.dispose();
+            }
+
+            async function addCurrentDifference() {
+                if (comparisonVectors.length === 0) {
+                    alert('No comparison vectors available.');
+                    return;
+                }
+
+                const latestVector = comparisonVectors[comparisonVectors.length - 1];
+                const multiplier = parseFloat(document.getElementById('multiplierInput').value);
+                if (isNaN(multiplier)) {
+                    alert('Please enter a valid multiplier.');
+                    return;
+                }
+
+                // Get current latent vector from sliders
+                const sliders = document.querySelectorAll('.slider');
+                if (sliders.length !== latentDim) {
+                    alert('Latent dimension mismatch.');
+                    return;
+                }
+
+                const currentLatent = Array.from(sliders, slider => parseFloat(slider.value));
+                if (currentLatent.length !== latestVector.length) {
+                    alert('Latent vector length mismatch.');
+                    return;
+                }
+
+                // Compute new latent vector by adding (comparisonVector * multiplier)
+                const newLatent = currentLatent.map((val, idx) => val + (latestVector[idx] * multiplier));
+
+                // Update sliders with the new latent vector
+                setSliders(newLatent);
+            }
+
+            /* ======= End of Comparator Functionality ======= */
+
+            // ======= Subset Percentage and Mode Controls =======
+
+            // Already handled in setupSubsetControls()
+
+            /* ======= End of Subset Percentage and Mode Controls ======= */
+
+            // ======= Dynamic Images per Minibatch Slider Functionality =======
+
+            // (Already implemented above)
+
+            /* ======= End of Dynamic Images per Minibatch Slider Functionality ======= */
+
+            // ======= Layer Structure and Model Building =======
+
+            // (All related functions are implemented above)
+
+            /* ======= End of Layer Structure and Model Building ======= */
+
+            // ======= Other Existing Functions =======
+
+            // (All other functions have been integrated above)
+
+            /* ======= End of Other Existing Functions ======= */
+
+            // ======= Utility Functions =======
+
+            // Function to get a random subset of indices
+            function getRandomSubset(total, count) {
+                const indices = Array.from({ length: total }, (_, i) => i);
+                for (let i = indices.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [indices[i], indices[j]] = [indices[j], indices[i]];
+                }
+                return indices.slice(0, count);
+            }
+
+            /* ======= End of Utility Functions ======= */
+        </script>
+    </body>
+
+    </html>
