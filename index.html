@@ -85,15 +85,18 @@
         }
 
         #sliderContainer {
-    display: flex;
-    flex-direction: column;
-    max-height: 300px; /* Set maximum height */
-    overflow-y: auto; /* Make the container scrollable */
-    width: 100%;
-    margin-top: 20px;
-    align-items: center; /* Centers the content horizontally */
+            display: flex;
+            flex-direction: column;
+            max-height: 300px;
+            /* Set maximum height */
+            overflow-y: auto;
+            /* Make the container scrollable */
+            width: 100%;
+            margin-top: 20px;
+            align-items: center;
+            /* Centers the content horizontally */
 
-}
+        }
 
 
         .slider {
@@ -528,6 +531,8 @@
 <body>
     <h1>Interactive Autoencoder with Webcam</h1>
 
+
+
     <!-- Resolution Control -->
     <div class="resolution-control">
         <div>
@@ -825,34 +830,33 @@
 
         // Function to Load and Display Layer Configuration
         function loadLayerConfiguration(configName) {
-    const config = layerConfigurations[configName];
-    const encoderSection = document.getElementById('encoderLayers');
-    const decoderSection = document.getElementById('decoderLayers');
-    
-    // Clear existing layers
-    encoderSection.innerHTML = '';
-    decoderSection.innerHTML = '';
+            const config = layerConfigurations[configName];
+            const encoderSection = document.getElementById('encoderLayers');
+            const decoderSection = document.getElementById('decoderLayers');
 
-    // Add Encoder Layers
-    config.forEach((layer, index) => {
-        const layerElement = createLayerElement();
-        layerElement.querySelector('.units-input').value = layer.units;
-        layerElement.querySelector('.activation-select').value = layer.activation;
+            // Clear existing layers
+            encoderSection.innerHTML = '';
+            decoderSection.innerHTML = '';
 
-        encoderSection.appendChild(layerElement);
-    });
+            // Add Encoder Layers
+            config.forEach((layer, index) => {
+                const layerElement = createLayerElement();
+                layerElement.querySelector('.units-input').value = layer.units;
+                layerElement.querySelector('.activation-select').value = layer.activation;
 
-    // Mirror encoder layers for decoder
-    mirrorDecoderLayers();
+                encoderSection.appendChild(layerElement);
+            });
 
-    // Set latentDim based on the last layer's units in the mirrored decoder configuration
-    const decoderLayers = getLayersConfig('decoderLayers'); // Retrieves the updated decoder layers
-    latentDim = decoderLayers[decoderLayers.length - 1].units;
+            // Mirror encoder layers for decoder
+            mirrorDecoderLayers();
 
-    // Recreate sliders based on updated latentDim
-    createSliders();
-    alert(`Loaded ${configName} layer configuration with ${latentDim} latent dimensions.`);
-}
+            // Set `latentDim` based on the units in the last layer in the encoder configuration
+            latentDim = config[config.length - 1].units;
+
+            // Recreate sliders based on the updated `latentDim`
+            createSliders();
+            alert(`Loaded ${configName} layer configuration with ${latentDim} latent dimensions.`);
+        }
 
         // Function to initialize the frame prediction model
         function initializeFramePredictionModel() {
@@ -1681,7 +1685,7 @@
         // Initialize the application
         async function init() {
             await initWebcam();
-            createSliders();
+            // createSliders();
             mirrorDecoderLayers(); // Ensure decoder is mirrored initially
             setupDragAndDrop(); // Initialize drag-and-drop functionality
             setupComparatorEvents(); // Initialize comparator event listeners
@@ -1690,34 +1694,34 @@
         }
 
         // Create sliders for latent space with fixed min and max values
-       function createSliders() {
-    const sliderContainer = document.getElementById('sliderContainer');
-    sliderContainer.innerHTML = ''; // Clear existing sliders
+        function createSliders() {
+            const sliderContainer = document.getElementById('sliderContainer');
+            sliderContainer.innerHTML = ''; // Clear existing sliders
 
-    const minValue = -3;
-    const maxValue = 3;
+            const minValue = -3;
+            const maxValue = 3;
 
-    for (let i = 0; i < latentDim; i++) {
-        const sliderDiv = document.createElement('div');
-        sliderDiv.className = 'slider-container';
-        
-        const label = document.createElement('label');
-        label.innerText = `Latent Dim ${i + 1}`;
-        sliderDiv.appendChild(label);
+            for (let i = 0; i < latentDim; i++) {
+                const sliderDiv = document.createElement('div');
+                sliderDiv.className = 'slider-container';
 
-        const slider = document.createElement('input');
-        slider.type = 'range';
-        slider.min = minValue;
-        slider.max = maxValue;
-        slider.step = 0.1;
-        slider.value = 0;
-        slider.className = 'slider';
-        slider.addEventListener('input', generateImage);
-        sliderDiv.appendChild(slider);
+                const label = document.createElement('label');
+                label.innerText = `Latent Dim ${i + 1}`;
+                sliderDiv.appendChild(label);
 
-        sliderContainer.appendChild(sliderDiv);
-    }
-}
+                const slider = document.createElement('input');
+                slider.type = 'range';
+                slider.min = minValue;
+                slider.max = maxValue;
+                slider.step = 0.1;
+                slider.value = 0;
+                slider.className = 'slider';
+                slider.addEventListener('input', generateImage);
+                sliderDiv.appendChild(slider);
+
+                sliderContainer.appendChild(sliderDiv);
+            }
+        }
         // Create layer UI elements dynamically
         function setupLayerControls() {
             // Apply the unfrozen state to all layers on load
@@ -2016,15 +2020,38 @@
         });
         async function configureEncoderAndDecoder(autoencoder) {
             try {
-                // Extract the encoder and decoder based on layer names or positions
-                const encoderOutputLayer = autoencoder.getLayer('batch_normalization_BatchNormalization4').output;
+                // Step 1: Find the encoder and decoder split points dynamically
+                const layers = autoencoder.layers;
+                const inputLayerIndex = 0;
+                let latentLayerIndex = null;
+
+                // Identify the last layer in the encoder by finding the latent layer
+                for (let i = 0; i < layers.length; i++) {
+                    const layer = layers[i];
+                    if (layer.output.shape.length === 2 && layer.output.shape[1] < 100) { // Adjust threshold if needed
+                        latentLayerIndex = i;
+                        break;
+                    }
+                }
+
+                if (latentLayerIndex === null) throw new Error('Latent layer not found');
+
+                // Step 2: Configure the encoder model from the start to the latent layer
+                const encoderOutputLayer = layers[latentLayerIndex].output;
                 encoder = tf.model({ inputs: autoencoder.input, outputs: encoderOutputLayer });
 
-                const decoderLayer = autoencoder.getLayer('model2'); // Replace with the decoder layer’s identifier in your model
-                decoder = decoderLayer;
+                // Step 3: Configure the decoder model from the latent layer output to the end
+                const decoderInput = tf.input({ shape: encoderOutputLayer.shape.slice(1) });
+                let x = decoderInput;
 
-                // Compile the autoencoder after loading
-                autoencoder.compile({ optimizer: optimizer, loss: 'meanAbsoluteError' });
+                for (let i = latentLayerIndex + 1; i < layers.length; i++) {
+                    x = layers[i].apply(x);
+                }
+
+                decoder = tf.model({ inputs: decoderInput, outputs: x });
+
+                // Step 4: Compile the autoencoder with encoder and decoder
+                autoencoder.compile({ optimizer, loss: 'meanAbsoluteError' });
 
                 // Update latentDim based on encoder's output shape
                 latentDim = encoder.outputShape[1];
@@ -2035,6 +2062,7 @@
                 alert('Error configuring encoder and decoder: ' + error.message);
             }
         }
+
 
 
 
